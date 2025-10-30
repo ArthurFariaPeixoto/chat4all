@@ -16,11 +16,11 @@
 /services/.DS_Store
 
 # Tests
-/services//coverage
-/services//.nyc_output
+/services/coverage
+/services/.nyc_output
 
 # IDEs and editors
-/services//.idea
+/services/.idea
 /services/.project
 /services/.classpath
 /services/.c9/
