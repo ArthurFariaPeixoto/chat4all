@@ -1,0 +1,118 @@
+version: "3.8"
+
+services:
+  cockroach:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroach
+    command: start-single-node --insecure --http-addr=0.0.0.0:8080
+    ports:
+      - "26257:26257" # postgres-wire protocol
+      - "8080:8080" # admin ui
+    volumes:
+      - cockroach-data:/cockroach/cockroach-data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "cockroach sql --insecure --host=localhost -e 'SELECT 1' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  cockroach-init:
+    image: cockroachdb/cockroach:latest
+    depends_on:
+      cockroach:
+        condition: service_healthy
+    entrypoint: [
+        "/bin/sh",
+        "-c",
+        "cockroach sql --insecure --host=cockroach -e \"CREATE DATABASE IF NOT EXISTS app_db;\" || true; \
+        cockroach sql --insecure --host=cockroach -e \"CREATE USER IF NOT EXISTS app_user;\" || true; \
+        cockroach sql --insecure --host=cockroach -e \"GRANT ALL ON DATABASE app_db TO app_user;\" || true; \
+        echo 'cockroach init script finished.'",
+      ]
+    restart: "no"
+
+  mongo:
+    image: mongo:6.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: app_db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--save", "60", "1"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sSf http://127.0.0.1:9000/minio/health/ready || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  app:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    container_name: nest-app
+    env_file:
+      - ./services/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      cockroach:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./:/usr/src/app:cached
+      - /usr/src/app/node_modules
+    # se for rodar em modo dev com hot reload, troque o CMD no Dockerfile para nodemon ou use override
+    environment:
+      - NODE_ENV=development
+
+volumes:
+  cockroach-data:
+  mongo-data:
+  redis-data:
+  minio-data:
