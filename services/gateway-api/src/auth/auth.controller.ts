@@ -1,6 +1,12 @@
 import { Controller } from '@nestjs/common';
-import { GrpcMethod } from '@nestjs/microservices';
+import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import { AuthService } from './auth.service';
+
+// Interfaces para tipagem dos dados gRPC
+interface RefreshTokenRequest {
+  refresh_token?: string;
+  refreshToken?: string; // Suporte para camelCase também
+}
 
 @Controller()
 export class AuthController {
@@ -78,14 +84,55 @@ export class AuthController {
         refresh_token: result.refresh_token,
       };
     } catch (error) {
-      console.error('Error in GetToken:', error);
-      throw error;
+      console.error('Error in GetToken controller:', error);
+      console.error('Error type:', error?.constructor?.name);
+      console.error('Is RpcException?', error instanceof RpcException);
+      console.error('Error code:', error?.code);
+      console.error('Error message:', error?.message);
+      
+      // Se já é um RpcException, propagar diretamente
+      if (error instanceof RpcException) {
+        console.log('Propagando RpcException');
+        throw error;
+      }
+      // Para outros erros, converter para RpcException
+      console.log('Convertendo erro para RpcException');
+      throw new RpcException({
+        status: 13, // INTERNAL
+        message: error.message || 'Erro interno ao processar requisição',
+      });
     }
   }
 
   @GrpcMethod('AuthService', 'RefreshToken')
-  async refreshToken(data: { refresh_token: string }) {
-    return this.authService.refreshToken(data.refresh_token);
+  async refreshToken(data: RefreshTokenRequest) {
+    console.log('RefreshToken received data:', JSON.stringify(data, null, 2));
+    
+    try {
+      // Tentar ambos os formatos (snake_case e camelCase) - gRPC pode enviar em qualquer formato
+      const refreshToken = data.refresh_token || data.refreshToken;
+      
+      const result = await this.authService.refreshToken(refreshToken);
+      
+      console.log('Returning result from RefreshToken controller:', JSON.stringify(result, null, 2));
+      
+      // Garantir que os campos estejam em snake_case conforme o proto
+      return {
+        access_token: result.access_token,
+        expires_in: result.expires_in,
+      };
+    } catch (error) {
+      console.error('Error in RefreshToken:', error);
+      // Se já é um RpcException, propagar diretamente
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      // Para outros erros, converter para RpcException
+      throw new RpcException({
+        code: 13, // INTERNAL
+        message: error.message || 'Erro interno ao processar requisição',
+      });
+    }
   }
 
   @GrpcMethod('AuthService', 'RevokeToken')

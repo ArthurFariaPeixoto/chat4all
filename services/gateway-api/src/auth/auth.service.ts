@@ -14,7 +14,105 @@ export class AuthService {
   ) {}
 
   /**
+   * Registra um novo usuário
+   */
+  async registerUser(
+    username: string,
+    email?: string,
+    password?: string,
+    displayName?: string,
+  ) {
+      // Validações
+    if (!username || username.trim().length < 3) {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: 'Username deve ter no mínimo 3 caracteres',
+      });
+    }
+
+    if (!password || password.length < 8) {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: 'Password deve ter no mínimo 8 caracteres',
+      });
+    }
+
+    // Validar formato de email se fornecido
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: 'Email inválido',
+      });
+    }
+
+    // Verificar se username já existe
+    const existingUserByUsername = await this.prisma.user.findUnique({
+      where: { username },
+    });
+
+    if (existingUserByUsername) {
+      throw new RpcException({
+        status: 6, // ALREADY_EXISTS
+        message: 'Username já está em uso',
+      });
+    }
+
+    // Verificar se email já existe (se fornecido)
+    if (email) {
+      const existingUserByEmail = await this.prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (existingUserByEmail) {
+        throw new RpcException({
+          status: 6, // ALREADY_EXISTS
+          message: 'Email já está em uso',
+        });
+      }
+    }
+
+    // Hash da senha
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+      // Criar usuário
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          username: username.trim(),
+          email: email?.trim() || null,
+          password: hashedPassword,
+          displayName: displayName?.trim() || null,
+        } as any,
+      });
+
+      return {
+        user_id: user.id,
+        username: user.username,
+        email: user.email || undefined,
+        display_name: user.displayName || undefined,
+        created_at: Math.floor(user.createdAt.getTime() / 1000),
+      };
+    } catch (error) {
+      // Tratar erros de constraint do banco
+      if (error.code === 'P2002') {
+        // Unique constraint violation
+        const field = error.meta?.target?.[0];
+        throw new RpcException({
+          status: 6, // ALREADY_EXISTS
+          message: `${field} já está em uso`,
+        });
+      }
+      throw new RpcException({
+        status: 13, // INTERNAL
+        message: 'Erro ao criar usuário',
+      });
+    }
+  }
+
+  /**
    * Gera token de acesso e refresh token
+   * Valida username/password contra a tabela user
    */
   async getToken(
     clientId: string,
@@ -25,53 +123,79 @@ export class AuthService {
   ) {
     console.log('getToken called with:', { clientId, grantType, hasUsername: !!username });
     
-    // Validação básica de grant_type
-    if (!grantType || (grantType !== 'client_credentials' && grantType !== 'password')) {
-      console.error('Invalid grant_type received:', grantType, 'Type:', typeof grantType);
+    // Validação de grant_type - apenas "password" é suportado
+    if (!grantType) {
       throw new RpcException({
-        code: 16, // UNAUTHENTICATED
-        message: `Invalid grant_type: ${grantType || 'undefined'}`,
+        status: 3, // INVALID_ARGUMENT
+        message: 'grant_type é obrigatório',
       });
     }
 
-    let userId: string;
-
-    console.log('Processing grant_type:', grantType);
-    
-    if (grantType === 'client_credentials') {
-      // Para client_credentials, usar client_id como user_id
-      // Em produção, validar client_id e client_secret contra uma tabela de clients
-      userId = clientId;
-      console.log('Using clientId as userId:', userId);
-    } else if (grantType === 'password') {
-      // Para password, validar username e password
-      if (!username || !password) {
-        throw new UnauthorizedException('Username and password required for password grant');
-      }
-
-      // Buscar usuário no banco
-      const user = await this.prisma.user.findFirst({
-        where: {
-          OR: [
-            { username },
-            { email: username },
-          ],
-        },
+    if (grantType !== 'password') {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: `grant_type deve ser "password". Recebido: ${grantType}`,
       });
-
-      if (!user) {
-        throw new UnauthorizedException('Invalid credentials');
-      }
-
-      // Validar senha (em produção, senha deve estar hasheada)
-      // Por enquanto, aceita qualquer senha se o usuário existir
-      // TODO: Implementar hash de senha quando schema Prisma estiver completo
-      userId = user.id;
-    } else {
-      throw new UnauthorizedException('Invalid grant_type');
     }
 
-    // Gerar tokens
+    // Validação de campos obrigatórios para grant_type "password"
+    if (!username || username.trim().length === 0) {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: 'username é obrigatório para grant_type "password"',
+      });
+    }
+
+    if (!password || password.length === 0) {
+      throw new RpcException({
+        status: 3, // INVALID_ARGUMENT
+        message: 'password é obrigatório para grant_type "password"',
+      });
+    }
+
+    // Buscar usuário no banco por username ou email
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: username.trim() },
+          { email: username.trim() },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        password: true,
+      } as any,
+    });
+
+    // Se usuário não encontrado, retornar erro de autenticação
+    if (!user) {
+      throw new RpcException({
+        status: 16, // UNAUTHENTICATED
+        message: 'Credenciais inválidas',
+      });
+    }
+
+      // Validar senha usando bcrypt
+    const userPassword = (user as any).password;
+    if (!userPassword) {
+      throw new RpcException({
+        status: 16, // UNAUTHENTICATED
+        message: 'Credenciais inválidas',
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, userPassword);
+    if (!isPasswordValid) {
+      throw new RpcException({
+        status: 16, // UNAUTHENTICATED
+        message: 'Credenciais inválidas',
+      });
+    }
+
+    // Se chegou aqui, credenciais são válidas - gerar tokens
+    const userId = String(user.id);
     console.log('About to generate tokens for userId:', userId);
     const accessToken = await this.generateAccessToken(userId);
     console.log('Access token generated, length:', accessToken?.length);
@@ -108,10 +232,33 @@ export class AuthService {
    * Renova access token usando refresh token
    */
   async refreshToken(refreshToken: string) {
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+    if (!refreshToken) {
+      throw new RpcException({
+        status: 16, // UNAUTHENTICATED
+        message: 'refresh_token is required',
       });
+    }
+
+    try {
+      const refreshSecret = this.configService.get<string>('JWT_REFRESH_SECRET');
+      if (!refreshSecret) {
+        throw new RpcException({
+          status: 13, // INTERNAL
+          message: 'JWT_REFRESH_SECRET is not configured',
+        });
+      }
+
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: refreshSecret,
+      });
+
+      // Verificar se é um refresh token (não um access token)
+      if (payload.type !== 'refresh') {
+        throw new RpcException({
+          status: 16, // UNAUTHENTICATED
+          message: 'Invalid token type. Expected refresh token.',
+        });
+      }
 
       // Gerar novo access token
       const accessToken = await this.generateAccessToken(payload.sub);
@@ -124,7 +271,16 @@ export class AuthService {
         expires_in: expiresInSeconds,
       };
     } catch (error) {
-      throw new UnauthorizedException('Invalid refresh token');
+      // Se já é um RpcException, re-lançar
+      if (error instanceof RpcException) {
+        throw error;
+      }
+      
+      // Para outros erros (JWT inválido, expirado, etc)
+      throw new RpcException({
+        status: 16, // UNAUTHENTICATED
+        message: error.message || 'Invalid refresh token',
+      });
     }
   }
 
