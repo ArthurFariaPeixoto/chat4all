@@ -49,7 +49,6 @@ message SendMessageRequest {
   repeated string channels = 5; // ["whatsapp", "telegram", "instagram", "all"]
   MessagePayload payload = 6;
   map<string, string> metadata = 7;
-  optional MessagePriority priority = 8;
 }
 
 message MessagePayload {
