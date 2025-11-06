@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
+import { KafkaModule } from './kafka/kafka.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { APP_GUARD } from '@nestjs/core';
         limit: 150,
       },
     ]),
+    KafkaModule,
     // Módulos serão adicionados aqui
   ],
   providers: [
