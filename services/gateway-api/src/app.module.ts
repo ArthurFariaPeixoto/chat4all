@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { KafkaModule } from './kafka/kafka.module';
 import { AuthModule } from './auth/auth.module';
+import { ConversationModule } from './conversations/conversation.module';
+import { MessageModule } from './messages/message.module';
 import { HealthController } from './health.controller';
+import { JwtInterceptor } from './auth/jwt-interceptor';
 
 @Module({
   imports: [
@@ -20,6 +23,8 @@ import { HealthController } from './health.controller';
     ]),
     KafkaModule,
     AuthModule,
+    ConversationModule,
+    MessageModule,
     // Módulos serão adicionados aqui
   ],
   controllers: [HealthController],
@@ -27,6 +32,10 @@ import { HealthController } from './health.controller';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: JwtInterceptor,
     },
   ],
 })
