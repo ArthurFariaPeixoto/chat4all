@@ -7,6 +7,34 @@ export class ConversationService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Converte tipo de conversa para formato enum do proto
+   */
+  private convertConversationType(type: string): string {
+    const upperType = type.toUpperCase();
+    if (upperType === 'PRIVATE') {
+      return 'CONVERSATION_TYPE_PRIVATE';
+    } else if (upperType === 'GROUP') {
+      return 'CONVERSATION_TYPE_GROUP';
+    }
+    return 'CONVERSATION_TYPE_UNSPECIFIED';
+  }
+
+  /**
+   * Converte role de membro para formato enum do proto
+   */
+  private convertMemberRole(role: string): string {
+    const upperRole = role.toUpperCase();
+    if (upperRole === 'OWNER') {
+      return 'MEMBER_ROLE_OWNER';
+    } else if (upperRole === 'ADMIN') {
+      return 'MEMBER_ROLE_ADMIN';
+    } else if (upperRole === 'MEMBER') {
+      return 'MEMBER_ROLE_MEMBER';
+    }
+    return 'MEMBER_ROLE_UNSPECIFIED';
+  }
+
+  /**
    * Cria uma nova conversa (privada ou grupo)
    */
   async createConversation(
@@ -131,11 +159,11 @@ export class ConversationService {
     return {
       conversation: {
         id: conversation.id,
-        type: conversation.type,
+        type: this.convertConversationType(conversation.type),
         name: conversation.name || undefined,
         members: conversation.members.map((m) => ({
           user_id: m.userId,
-          role: m.role,
+          role: this.convertMemberRole(m.role),
           joined_at: Math.floor(m.joinedAt.getTime() / 1000),
           last_read_seq: Number(m.lastReadSeq || 0),
           last_delivered_seq: Number(m.lastDeliveredSeq || 0),
@@ -188,10 +216,17 @@ export class ConversationService {
         where,
         include: {
           members: {
-            where: {
-              userId,
+            // Retornar TODOS os membros da conversa, não apenas o usuário logado
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  email: true,
+                },
+              },
             },
-            take: 1,
           },
           creator: {
             select: {
@@ -213,11 +248,11 @@ export class ConversationService {
     // Converter para formato gRPC
     const formattedConversations = conversations.map((conv) => ({
       id: conv.id,
-      type: conv.type,
+      type: this.convertConversationType(conv.type),
       name: conv.name || undefined,
       members: conv.members.map((m) => ({
         user_id: m.userId,
-        role: m.role,
+        role: this.convertMemberRole(m.role),
         joined_at: Math.floor(m.joinedAt.getTime() / 1000),
         last_read_seq: Number(m.lastReadSeq || 0),
         last_delivered_seq: Number(m.lastDeliveredSeq || 0),
@@ -316,7 +351,7 @@ export class ConversationService {
     return {
       added_members: newMembers.map((m) => ({
         user_id: m.userId,
-        role: m.role,
+        role: this.convertMemberRole(m.role),
         joined_at: Math.floor(m.joinedAt.getTime() / 1000),
         last_read_seq: Number(m.lastReadSeq || 0),
         last_delivered_seq: Number(m.lastDeliveredSeq || 0),
