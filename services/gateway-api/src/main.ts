@@ -10,17 +10,29 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const grpcPort = configService.get<number>('GRPC_PORT', 50051);
 
+  // Usar caminho absoluto baseado no diretório de trabalho
+  // No Docker: /usr/src/app, localmente: raiz do projeto
+  const protoBasePath = join(process.cwd(), 'proto');
+
   // Configurar gRPC microservice
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,
     options: {
       package: ['chat4all.v1'],
       protoPath: [
-        join(__dirname, '../../proto/chat4all/v1/common.proto'),
-        join(__dirname, '../../proto/chat4all/v1/auth.proto'),
-        join(__dirname, '../../proto/chat4all/v1/conversation.proto'),
-        join(__dirname, '../../proto/chat4all/v1/message.proto'),
+        join(protoBasePath, 'chat4all/v1/common.proto'),
+        join(protoBasePath, 'chat4all/v1/auth.proto'),
+        join(protoBasePath, 'chat4all/v1/conversation.proto'),
+        join(protoBasePath, 'chat4all/v1/message.proto'),
       ],
+      loader: {
+        includeDirs: [protoBasePath],
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true,
+      },
       url: `0.0.0.0:${grpcPort}`,
     },
   });
