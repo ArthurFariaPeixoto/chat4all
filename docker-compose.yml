@@ -173,8 +173,8 @@ services:
 
   gateway-api:
     build:
-      context: .
-      dockerfile: Dockerfile.gateway-api
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
     container_name: gateway-api
     env_file:
       - ./services/.env
@@ -202,7 +202,7 @@ services:
       - JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
       - JWT_EXPIRATION=15m
       - JWT_REFRESH_EXPIRATION=7d
-    command: sh -c "npm install && npx prisma generate && npm run start:dev"
+    command: sh -c "npm install && npm rebuild bcrypt && npx prisma generate && npm run start:dev"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health || exit 1"]
       interval: 10s
