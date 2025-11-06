@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { KafkaModule } from './kafka/kafka.module';
+import { AuthModule } from './auth/auth.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -17,8 +19,10 @@ import { KafkaModule } from './kafka/kafka.module';
       },
     ]),
     KafkaModule,
+    AuthModule,
     // Módulos serão adicionados aqui
   ],
+  controllers: [HealthController],
   providers: [
     {
       provide: APP_GUARD,
