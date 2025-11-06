@@ -6,8 +6,8 @@ import { Connection } from "mongoose";
 @Global()
 @Module({
     imports: [
-        MongooseModule.forRoot(process.env.MONGO_URI ?? "mongodb://localhost/myapp", {
-            dbName: process.env.MONGO_DBNAME,
+        MongooseModule.forRoot(process.env.MONGODB_URI ?? process.env.MONGO_URI ?? "mongodb://localhost/myapp", {
+            dbName: process.env.MONGO_DBNAME ?? "app_db",
         }),
     ],
     providers: [

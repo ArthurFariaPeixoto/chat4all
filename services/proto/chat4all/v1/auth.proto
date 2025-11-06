@@ -7,6 +7,9 @@ package chat4all.v1;
 // ===========================
 
 service AuthService {
+  // Registrar novo usuário
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  
   // Obter token de acesso
   rpc GetToken(GetTokenRequest) returns (GetTokenResponse);
   
@@ -76,5 +79,24 @@ message ValidateTokenResponse {
   bool valid = 1;
   optional string user_id = 2;
   optional int64 expires_at = 3;
+}
+
+// ===========================
+// Messages - RegisterUser
+// ===========================
+
+message RegisterUserRequest {
+  string username = 1;
+  optional string email = 2;
+  string password = 3;
+  optional string display_name = 4;
+}
+
+message RegisterUserResponse {
+  string user_id = 1;
+  string username = 2;
+  optional string email = 3;
+  optional string display_name = 4;
+  int64 created_at = 5; // timestamp em segundos
 }
 

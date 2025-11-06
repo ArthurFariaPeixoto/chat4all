@@ -51,7 +51,6 @@ proto/
 - `MemberRole` - MEMBER, ADMIN, OWNER
 - `MessageStatus` - ACCEPTED, SENT, DELIVERED, READ, FAILED
 - `MessageType` - TEXT, IMAGE, VIDEO, AUDIO, DOCUMENT, LOCATION, CONTACT
-- `MessagePriority` - NORMAL, HIGH, URGENT
 - `PresenceStatus` - ONLINE, AWAY, BUSY, OFFLINE
 - `ConnectorStatus` - ACTIVE, INACTIVE, ERROR
 - `WebhookEvent` - MESSAGE_SENT, MESSAGE_DELIVERED, etc.

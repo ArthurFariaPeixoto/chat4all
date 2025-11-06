@@ -171,6 +171,44 @@ services:
       timeout: 5s
       retries: 5
 
+  gateway-api:
+    build:
+      context: ./services/gateway-api
+      dockerfile: Dockerfile
+    container_name: gateway-api
+    env_file:
+      - ./services/.env
+    ports:
+      - "3000:3000"  # HTTP server
+      - "50051:50051"  # gRPC server
+    depends_on:
+      cockroach:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./services/gateway-api:/usr/src/app:cached
+      - ./services/proto:/usr/src/app/proto:cached
+      - /usr/src/app/node_modules
+      - gateway-api-node-modules:/usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://app_user@cockroach:26257/app_db?sslmode=disable
+      - KAFKA_BROKER=kafka:9092
+      - GRPC_PORT=50051
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-in-production
+      - JWT_EXPIRATION=15m
+      - JWT_REFRESH_EXPIRATION=7d
+    command: sh -c "npm install && npm rebuild bcrypt && npx prisma generate && npm run start:dev"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     build:
       context: ./services
@@ -179,7 +217,7 @@ services:
     env_file:
       - ./services/.env
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       cockroach:
         condition: service_healthy
@@ -206,3 +244,4 @@ volumes:
   zookeeper-data:
   zookeeper-logs:
   kafka-data:
+  gateway-api-node-modules:

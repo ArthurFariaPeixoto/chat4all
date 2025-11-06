@@ -43,14 +43,6 @@ enum MessageType {
   MESSAGE_TYPE_CONTACT = 7;
 }
 
-// Prioridade de mensagem
-enum MessagePriority {
-  MESSAGE_PRIORITY_UNSPECIFIED = 0;
-  MESSAGE_PRIORITY_NORMAL = 1;
-  MESSAGE_PRIORITY_HIGH = 2;
-  MESSAGE_PRIORITY_URGENT = 3;
-}
-
 // Status de presença
 enum PresenceStatus {
   PRESENCE_STATUS_UNSPECIFIED = 0;

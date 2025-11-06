@@ -1,0 +1,25 @@
+FROM node:20-alpine
+
+WORKDIR /usr/src/app
+
+# Instalar wget para healthcheck
+RUN apk add --no-cache wget
+
+# Copiar package files
+COPY services/gateway-api/package*.json ./
+
+# Instalar dependências
+RUN npm ci
+
+# Copiar código fonte
+COPY services/gateway-api/ ./
+COPY services/proto/ ./proto/
+
+# 🔹 Gera o cliente Prisma dentro do container
+RUN npx prisma generate --schema=./prisma/schema.prisma
+
+# Expor portas
+EXPOSE 3000 50051
+
+# Comando padrão (será sobrescrito no docker-compose)
+CMD ["npm", "run", "start:dev"]

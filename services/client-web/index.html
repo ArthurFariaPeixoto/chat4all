@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat4All - Cliente de Teste</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Chat4All - Cliente de Teste</h1>
+            <p>Interface web para testar a API gRPC do Gateway</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Seção de Autenticação -->
+            <section class="section" id="auth-section">
+                <h2>🔐 Autenticação</h2>
+                
+                <div class="token-display" id="token-display" style="display: none;">
+                    <strong>Token atual:</strong>
+                    <code id="current-token">-</code>
+                    <button onclick="clearToken()" class="btn-secondary">Limpar Token</button>
+                </div>
+
+                <div class="form-group">
+                    <h3>Registrar Usuário</h3>
+                    <form id="register-user-form">
+                        <input type="text" id="register-username" placeholder="Username (mín. 3 caracteres)" required>
+                        <input type="email" id="register-email" placeholder="Email (opcional)">
+                        <input type="password" id="register-password" placeholder="Password (mín. 8 caracteres)" required>
+                        <input type="text" id="register-display-name" placeholder="Display Name (opcional)">
+                        <button type="submit" class="btn-primary">Registrar Usuário</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Obter Token (Login)</h3>
+                    <form id="get-token-form">
+                        <input type="text" id="login-username" placeholder="Username ou Email" required>
+                        <input type="password" id="login-password" placeholder="Password" required>
+                        <button type="submit" class="btn-primary">Fazer Login</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Validar Token</h3>
+                    <form id="validate-token-form">
+                        <input type="text" id="validate-token-input" placeholder="Token para validar">
+                        <button type="submit" class="btn-primary">Validar</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Renovar Token</h3>
+                    <form id="refresh-token-form">
+                        <input type="text" id="refresh-token-input" placeholder="Refresh Token">
+                        <button type="submit" class="btn-primary">Renovar</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Revogar Token</h3>
+                    <form id="revoke-token-form">
+                        <input type="text" id="revoke-token-input" placeholder="Token para revogar">
+                        <button type="submit" class="btn-danger">Revogar</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Seção de Conversas -->
+            <section class="section" id="conversations-section">
+                <h2>💬 Conversas</h2>
+
+                <div class="form-group">
+                    <h3>Criar Conversa</h3>
+                    <form id="create-conversation-form">
+                        <select id="conversation-type" required>
+                            <option value="PRIVATE">Privada</option>
+                            <option value="GROUP">Grupo</option>
+                        </select>
+                        <input type="text" id="conversation-members" placeholder="IDs dos membros (separados por vírgula)" required>
+                        <input type="text" id="conversation-name" placeholder="Nome (opcional, apenas para grupos)">
+                        <button type="submit" class="btn-primary">Criar Conversa</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Listar Conversas</h3>
+                    <form id="list-conversations-form">
+                        <label>
+                            <input type="checkbox" id="include-archived"> Incluir arquivadas
+                        </label>
+                        <button type="submit" class="btn-primary">Listar</button>
+                        <p class="help-text">O User ID será extraído automaticamente do token</p>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Obter Conversa</h3>
+                    <form id="get-conversation-form">
+                        <input type="text" id="get-conversation-id" placeholder="Conversation ID" required>
+                        <button type="submit" class="btn-primary">Obter</button>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Adicionar Membros</h3>
+                    <form id="add-members-form">
+                        <input type="text" id="add-members-conv-id" placeholder="Conversation ID" required>
+                        <input type="text" id="add-members-user-ids" placeholder="IDs dos usuários (separados por vírgula)" required>
+                        <button type="submit" class="btn-primary">Adicionar</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Seção de Mensagens -->
+            <section class="section" id="messages-section">
+                <h2>📨 Mensagens</h2>
+
+                <div class="form-group">
+                    <h3>Enviar Mensagem</h3>
+                    <form id="send-message-form">
+                        <input type="text" id="message-conversation-id" placeholder="Conversation ID" required>
+                        <input type="text" id="message-channels" placeholder="Canais (separados por vírgula, padrão: all)">
+                        <textarea id="message-text" placeholder="Texto da mensagem" required></textarea>
+                        <button type="submit" class="btn-primary">Enviar Mensagem</button>
+                        <p class="help-text">O remetente será extraído automaticamente do token. Os destinatários serão todos os membros da conversa exceto o remetente.</p>
+                    </form>
+                </div>
+
+                <div class="form-group">
+                    <h3>Obter Mensagens</h3>
+                    <form id="get-messages-form">
+                        <input type="text" id="get-messages-conv-id" placeholder="Conversation ID" required>
+                        <input type="number" id="get-messages-limit" placeholder="Limite (padrão: 50, máx: 100)" min="1" max="100">
+                        <input type="number" id="get-messages-since-seq" placeholder="Since Seq (opcional - mensagens após este seq)">
+                        <input type="number" id="get-messages-until-seq" placeholder="Until Seq (opcional - mensagens até este seq)">
+                        <label>
+                            <input type="checkbox" id="get-messages-reverse"> Ordem reversa (mais recentes primeiro)
+                        </label>
+                        <button type="submit" class="btn-primary">Obter Mensagens</button>
+                        <p class="help-text">Use since_seq para paginação: passe o next_seq da resposta anterior para obter mais mensagens.</p>
+                    </form>
+                </div>
+            </section>
+        </div>
+
+        <!-- Área de Resultados -->
+        <section class="results-section">
+            <h2>📊 Resultados</h2>
+            <div class="results-controls">
+                <button onclick="clearResults()" class="btn-secondary">Limpar</button>
+                <button onclick="exportResults()" class="btn-secondary">Exportar JSON</button>
+            </div>
+            <div id="results" class="results-container"></div>
+        </section>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>
+
