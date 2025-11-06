@@ -1,0 +1,16 @@
+import { Module } from '@nestjs/common';
+import { MessageController } from './message.controller';
+import { MessageService } from './message.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { KafkaModule } from '../kafka/kafka.module';
+import { AuthModule } from '../auth/auth.module';
+import { MongoDBModule } from '../mongodb/mongodb.module';
+
+@Module({
+  imports: [PrismaModule, KafkaModule, AuthModule, MongoDBModule],
+  controllers: [MessageController],
+  providers: [MessageService],
+  exports: [MessageService],
+})
+export class MessageModule {}
+
