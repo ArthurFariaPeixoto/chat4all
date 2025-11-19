@@ -111,7 +111,14 @@ export class AuthController {
     try {
       // Tentar ambos os formatos (snake_case e camelCase) - gRPC pode enviar em qualquer formato
       const refreshToken = data.refresh_token || data.refreshToken;
-      
+
+        if (!refreshToken) {
+            throw new RpcException({
+                code: 3, // INVALID_ARGUMENT
+                message: 'refresh_token é obrigatório',
+            });
+        }
+
       const result = await this.authService.refreshToken(refreshToken);
       
       console.log('Returning result from RefreshToken controller:', JSON.stringify(result, null, 2));
