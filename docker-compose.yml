@@ -45,7 +45,7 @@ services:
     environment:
       MONGO_INITDB_DATABASE: app_db
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,6 +71,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
+    env_file:
+      - ./services/.env
     ports:
       - "9000:9000" # S3 API
       - "9001:9001" # Console
@@ -122,13 +124,17 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
       test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
+      interval: 5s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
 
   kafka-init:
     image: confluentinc/cp-kafka:7.5.0
@@ -204,10 +210,55 @@ services:
       - JWT_REFRESH_EXPIRATION=7d
     command: sh -c "npm install && npm rebuild bcrypt && npx prisma generate && npm run start:dev"
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      start_period: 10s
+      retries: 8
+
+  client-web:
+    build:
+      context: ./services/client-web
+      dockerfile: Dockerfile
+    container_name: client-web
+    ports:
+      - "8081:8081"
+    depends_on:
+      gateway-api:
+        condition: service_healthy
+    volumes:
+      - ./services/client-web:/usr/src/app:cached
+      - ./services/proto:/usr/src/app/proto:cached
+      - /usr/src/app/node_modules
+      - client-web-node-modules:/usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CLIENT_WEB_PORT=8081
+      - GRPC_URL=gateway-api:50051
+    command: sh -c "npm install && npm start"
+
+  message-consumer:
+    build:
+      context: ./services/message-consumer
+      dockerfile: Dockerfile
+    container_name: message-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./services/message-consumer:/usr/src/app:cached
+      - /usr/src/app/node_modules
+      - message-consumer-node-modules:/usr/src/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - KAFKA_BROKER=kafka:9092
+      - MONGODB_URI=mongodb://mongo:27017/app_db
+      - MONGO_DBNAME=app_db
+    command: sh -c "npm install && npm run build && npm start"
 
   app:
     build:
@@ -245,3 +296,5 @@ volumes:
   zookeeper-logs:
   kafka-data:
   gateway-api-node-modules:
+  client-web-node-modules:
+  message-consumer-node-modules:
