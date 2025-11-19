@@ -48,25 +48,23 @@ class MessageConsumer {
   private isRunning = false;
 
   constructor() {
-    // Configurar Kafka - hardcoded para localhost
-    // Usar porta 9093 que está configurada como PLAINTEXT_HOST no docker-compose
-    const broker = 'localhost:9093';
-    const clientId = 'message-consumer';
-    const groupId = 'message-consumer-group';
+    // Configurar Kafka - usar variável de ambiente ou padrão
+    const broker = process.env.KAFKA_BROKER || 'localhost:9092';
+    const clientId = process.env.KAFKA_CLIENT_ID || 'message-consumer';
+    const groupId = process.env.KAFKA_CONSUMER_GROUP_ID || 'message-consumer-group';
 
     console.log('========================================');
-    console.log(`[MessageConsumer] BROKER HARDCODED: ${broker}`);
     console.log(`[MessageConsumer] Configurando Kafka - broker: ${broker}, clientId: ${clientId}, groupId: ${groupId}`);
     console.log('========================================');
 
     this.kafka = new Kafka({
       clientId,
       brokers: [broker],
-      connectionTimeout: 3000,
+      connectionTimeout: 10000, // Aumentado para 10 segundos
       requestTimeout: 30000,
       retry: {
-        retries: 5,
-        initialRetryTime: 100,
+        retries: 10, // Aumentado número de retries
+        initialRetryTime: 300, // Aumentado tempo inicial
         multiplier: 2,
         maxRetryTime: 30000,
       },
@@ -75,14 +73,43 @@ class MessageConsumer {
 
     this.consumer = this.kafka.consumer({ groupId });
 
-    // Configurar MongoDB - hardcoded para localhost
-    const mongoUri = 'mongodb://localhost:27017/app_db';
-    const dbName = 'app_db';
+    // Configurar MongoDB - usar variável de ambiente ou padrão
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/app_db';
+    const dbName = process.env.MONGO_DBNAME || 'app_db';
 
     console.log(`[MessageConsumer] Configurando MongoDB - uri: ${mongoUri}, dbName: ${dbName}`);
 
     this.mongoClient = new MongoClient(mongoUri);
     this.dbName = dbName;
+  }
+
+  /**
+   * Aguarda o Kafka estar disponível antes de tentar conectar
+   */
+  private async waitForKafka(maxRetries: number = 30, delayMs: number = 2000): Promise<void> {
+    const broker = process.env.KAFKA_BROKER || 'localhost:9092';
+    
+    console.log(`[MessageConsumer] Aguardando Kafka estar disponível em ${broker}...`);
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Tentar criar um admin client temporário para verificar conexão
+        const adminClient = this.kafka.admin();
+        await adminClient.connect();
+        await adminClient.listTopics();
+        await adminClient.disconnect();
+        console.log(`[MessageConsumer] Kafka está disponível após ${attempt} tentativa(s)`);
+        return;
+      } catch (error) {
+        if (attempt < maxRetries) {
+          console.log(`[MessageConsumer] Tentativa ${attempt}/${maxRetries} - Kafka ainda não está pronto, aguardando ${delayMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          console.error(`[MessageConsumer] Kafka não está disponível após ${maxRetries} tentativas`);
+          throw new Error(`Kafka não está disponível em ${broker} após ${maxRetries} tentativas: ${error}`);
+        }
+      }
+    }
   }
 
   async connect(): Promise<void> {
@@ -98,6 +125,9 @@ class MessageConsumer {
       await this.messagesCollection.createIndex({ conversation_id: 1, timestamp: -1 });
       await this.messagesCollection.createIndex({ conversation_id: 1, seq: 1 });
       console.log('[MessageConsumer] Índices criados no MongoDB');
+
+      // Aguardar Kafka estar disponível antes de conectar
+      await this.waitForKafka();
 
       // Conectar ao Kafka
       console.log('[MessageConsumer] Conectando ao Kafka...');
