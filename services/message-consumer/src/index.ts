@@ -1,4 +1,4 @@
-import { Kafka, Consumer, EachMessagePayload } from 'kafkajs';
+import { Kafka, Consumer, EachMessagePayload, Producer } from 'kafkajs';
 import { MongoClient, Db, Collection } from 'mongodb';
 
 interface MessageEvent {
@@ -41,6 +41,7 @@ interface MessageDocument {
 class MessageConsumer {
   private kafka: Kafka;
   private consumer: Consumer;
+  private producer: Producer;
   private mongoClient: MongoClient;
   private db!: Db;
   private dbName: string;
@@ -72,6 +73,7 @@ class MessageConsumer {
     });
 
     this.consumer = this.kafka.consumer({ groupId });
+    this.producer = this.kafka.producer();
 
     // Configurar MongoDB - usar variável de ambiente ou padrão
     const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://localhost:27017/app_db';
@@ -121,7 +123,26 @@ class MessageConsumer {
       this.messagesCollection = this.db.collection<MessageDocument>('messages');
 
       // Criar índices
-      await this.messagesCollection.createIndex({ message_id: 1 }, { unique: true });
+      // Em sharded clusters, índices únicos devem incluir a shard key como prefixo
+      // Como estamos shardando por conversation_id (hashed), não podemos criar índice único apenas em message_id
+      // A solução é criar um índice composto ou garantir unicidade na aplicação
+      
+      try {
+        // Criar índice único composto incluindo a shard key (conversation_id) é uma opção,
+        // mas o message_id globalmente único é o ideal.
+        // No entanto, o MongoDB exige que índices únicos em coleções shardadas contenham a shard key.
+        
+        // Tentativa 1: Índice único composto (melhor esforço para unicidade no cluster)
+        // Nota: Isso garante unicidade do message_id APENAS dentro da mesma conversation_id
+        await this.messagesCollection.createIndex({ conversation_id: 1, message_id: 1 }, { unique: true });
+        
+        // Para consultas rápidas por message_id (sem garantir unicidade global via constraint do banco)
+        await this.messagesCollection.createIndex({ message_id: 1 });
+
+      } catch (e: any) {
+        console.warn('[MessageConsumer] Aviso ao criar índices de message_id:', e.message);
+      }
+
       await this.messagesCollection.createIndex({ conversation_id: 1, timestamp: -1 });
       await this.messagesCollection.createIndex({ conversation_id: 1, seq: 1 });
       console.log('[MessageConsumer] Índices criados no MongoDB');
@@ -132,7 +153,8 @@ class MessageConsumer {
       // Conectar ao Kafka
       console.log('[MessageConsumer] Conectando ao Kafka...');
       await this.consumer.connect();
-      console.log('[MessageConsumer] Conectado ao Kafka');
+      await this.producer.connect();
+      console.log('[MessageConsumer] Conectado ao Kafka (Consumer e Producer)');
 
       // Subscrever ao tópico
       const topic = 'messages.send';
@@ -157,6 +179,12 @@ class MessageConsumer {
 
       // Parse da mensagem
       const event: MessageEvent = JSON.parse(message.value?.toString() || '{}');
+
+      // Validações básicas
+      if (!event.message_id || !event.conversation_id || !event.from) {
+        console.error(`[MessageConsumer] Mensagem inválida: campos obrigatórios faltando`, event);
+        return; // DLQ em um cenário real
+      }
 
       // Verificar se a mensagem já foi processada (idempotência)
       const existingMessage = await this.messagesCollection.findOne({
@@ -186,15 +214,29 @@ class MessageConsumer {
         timestamp: event.timestamp,
         created_at: new Date(),
         seq,
-        status: 'ACCEPTED',
+        status: 'SENT', // Status atualizado conforme requisito
       };
 
       // Salvar no MongoDB
       await this.messagesCollection.insertOne(document);
 
       console.log(
-        `[MessageConsumer] Mensagem salva no MongoDB - message_id: ${event.message_id}, conversation_id: ${event.conversation_id}, seq: ${seq}`,
+        `[MessageConsumer] Mensagem persistida no MongoDB - message_id: ${event.message_id}, status: SENT`,
       );
+
+      // Encaminhar para o próximo estágio (Router/Connector)
+      const routingTopic = 'messages.routing';
+      await this.producer.send({
+        topic: routingTopic,
+        messages: [{
+          key: event.conversation_id,
+          value: JSON.stringify({ ...event, status: 'SENT' }),
+          headers: message.headers,
+        }],
+      });
+
+      console.log(`[MessageConsumer] Mensagem encaminhada para ${routingTopic} - message_id: ${event.message_id}`);
+
     } catch (error) {
       console.error(
         `[MessageConsumer] Erro ao processar mensagem - message_id: ${messageId}, conversation_id: ${conversationId}`,
@@ -246,6 +288,7 @@ class MessageConsumer {
 
     try {
       await this.consumer.disconnect();
+      await this.producer.disconnect();
       console.log('[MessageConsumer] Desconectado do Kafka');
     } catch (error) {
       console.error('[MessageConsumer] Erro ao desconectar do Kafka:', error);
