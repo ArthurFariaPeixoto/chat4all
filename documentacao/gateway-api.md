@@ -9,6 +9,8 @@
 
 ## 🚀 Gateway API
 
+> 📘 **Documentação Detalhada**: Para uma referência completa de todos os endpoints, mensagens e tipos gRPC, consulte [Documentação gRPC](./grpc_endpoints.md).
+
 ### Visão Geral
 A Gateway API é o serviço principal da aplicação, construído com **NestJS** e expondo uma API **gRPC** na porta 50051 e um servidor HTTP na porta 3000. Ela atua como ponto de entrada para todas as operações do sistema de chat.
 

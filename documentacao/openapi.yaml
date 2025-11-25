@@ -1,0 +1,517 @@
+openapi: 3.0.3
+info:
+  title: Chat4All Gateway API (gRPC Mapped)
+  description: >-
+    Documentação estilo OpenAPI para os serviços gRPC da Gateway API.
+    Embora a API real seja gRPC (HTTP/2 + Protobuf), esta documentação
+    utiliza o formato OpenAPI para facilitar a visualização dos métodos
+    e estruturas de dados como se fossem endpoints RESTful.
+    
+    **Nota**: Os "paths" aqui representam os métodos gRPC no formato `/{Service}/{Method}`.
+  version: 1.0.0
+  contact:
+    name: Equipe Chat4All
+servers:
+  - url: http://localhost:50051
+    description: Servidor gRPC Local
+  - url: http://localhost:3000
+    description: Servidor HTTP (apenas Health Check)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  
+  schemas:
+    # Common Types
+    ConversationType:
+      type: string
+      enum:
+        - CONVERSATION_TYPE_UNSPECIFIED
+        - CONVERSATION_TYPE_PRIVATE
+        - CONVERSATION_TYPE_GROUP
+    
+    MemberRole:
+      type: string
+      enum:
+        - MEMBER_ROLE_UNSPECIFIED
+        - MEMBER_ROLE_MEMBER
+        - MEMBER_ROLE_ADMIN
+        - MEMBER_ROLE_OWNER
+    
+    MessageStatus:
+      type: string
+      enum:
+        - MESSAGE_STATUS_UNSPECIFIED
+        - MESSAGE_STATUS_ACCEPTED
+        - MESSAGE_STATUS_SENT
+        - MESSAGE_STATUS_DELIVERED
+        - MESSAGE_STATUS_READ
+        - MESSAGE_STATUS_FAILED
+    
+    MessageType:
+      type: string
+      enum:
+        - MESSAGE_TYPE_UNSPECIFIED
+        - MESSAGE_TYPE_TEXT
+        - MESSAGE_TYPE_IMAGE
+        - MESSAGE_TYPE_VIDEO
+        - MESSAGE_TYPE_AUDIO
+        - MESSAGE_TYPE_DOCUMENT
+        - MESSAGE_TYPE_LOCATION
+        - MESSAGE_TYPE_CONTACT
+
+    # Auth Models
+    RegisterUserRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        display_name:
+          type: string
+
+    RegisterUserResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        email:
+          type: string
+        display_name:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+
+    GetTokenRequest:
+      type: object
+      properties:
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        grant_type:
+          type: string
+          enum: [client_credentials, password]
+        username:
+          type: string
+        password:
+          type: string
+
+    GetTokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: "Bearer"
+        expires_in:
+          type: integer
+        refresh_token:
+          type: string
+
+    # Conversation Models
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/ConversationType'
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMember'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: integer
+          format: int64
+        created_by:
+          type: string
+        archived:
+          type: boolean
+
+    ConversationMember:
+      type: object
+      properties:
+        user_id:
+          type: string
+        role:
+          $ref: '#/components/schemas/MemberRole'
+        joined_at:
+          type: integer
+          format: int64
+        last_read_seq:
+          type: integer
+          format: int64
+        last_delivered_seq:
+          type: integer
+          format: int64
+
+    CreateConversationRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ConversationType'
+        member_ids:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    # Message Models
+    Message:
+      type: object
+      properties:
+        message_id:
+          type: string
+        conversation_id:
+          type: string
+        from:
+          type: string
+        to:
+          type: array
+          items:
+            type: string
+        payload:
+          $ref: '#/components/schemas/MessagePayload'
+        metadata:
+          type: object
+        seq:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/MessageStatus'
+        created_at:
+          type: integer
+          format: int64
+
+    MessagePayload:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/MessageType'
+        text:
+          type: string
+        file:
+          $ref: '#/components/schemas/FileReference'
+        location:
+          $ref: '#/components/schemas/LocationData'
+        contact:
+          $ref: '#/components/schemas/ContactData'
+
+    FileReference:
+      type: object
+      properties:
+        file_id:
+          type: string
+        name:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+          format: int64
+        thumbnail_url:
+          type: string
+
+    LocationData:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        address:
+          type: string
+
+    ContactData:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+
+    SendMessageRequest:
+      type: object
+      properties:
+        message_id:
+          type: string
+        conversation_id:
+          type: string
+        from:
+          type: string
+        to:
+          type: array
+          items:
+            type: string
+        channels:
+          type: array
+          items:
+            type: string
+        payload:
+          $ref: '#/components/schemas/MessagePayload'
+        metadata:
+          type: object
+
+paths:
+  # AuthService
+  /AuthService/RegisterUser:
+    post:
+      tags:
+        - AuthService
+      summary: Register a new user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterUserRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterUserResponse'
+
+  /AuthService/GetToken:
+    post:
+      tags:
+        - AuthService
+      summary: Authenticate and get token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetTokenRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetTokenResponse'
+
+  /AuthService/ValidateToken:
+    post:
+      tags:
+        - AuthService
+      summary: Validate a token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  user_id:
+                    type: string
+                  expires_at:
+                    type: integer
+                    format: int64
+
+  # ConversationService
+  /ConversationService/CreateConversation:
+    post:
+      tags:
+        - ConversationService
+      summary: Create a new conversation
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversation_id:
+                    type: string
+                  created_at:
+                    type: integer
+                    format: int64
+
+  /ConversationService/GetConversation:
+    post:
+      tags:
+        - ConversationService
+      summary: Get conversation details
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversation_id:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversation:
+                    $ref: '#/components/schemas/Conversation'
+
+  /ConversationService/ListConversations:
+    post:
+      tags:
+        - ConversationService
+      summary: List user conversations
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                include_archived:
+                  type: boolean
+                page_size:
+                  type: integer
+                page_token:
+                  type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+                  next_page_token:
+                    type: string
+                  total_count:
+                    type: integer
+
+  # MessageService
+  /MessageService/SendMessage:
+    post:
+      tags:
+        - MessageService
+      summary: Send a message
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: string
+                  status:
+                    $ref: '#/components/schemas/MessageStatus'
+                  timestamp:
+                    type: integer
+                    format: int64
+                  seq:
+                    type: integer
+                    format: int64
+
+  /MessageService/GetMessages:
+    post:
+      tags:
+        - MessageService
+      summary: Get message history
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversation_id:
+                  type: string
+                since_seq:
+                  type: integer
+                  format: int64
+                limit:
+                  type: integer
+                reverse:
+                  type: boolean
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  has_more:
+                    type: boolean
+                  next_seq:
+                    type: integer
+                    format: int64
+
