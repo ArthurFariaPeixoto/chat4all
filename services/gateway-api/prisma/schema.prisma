@@ -42,7 +42,7 @@ model Conversation {
   metadata  Json?
 
   // Relações
-  creator User @relation("ConversationCreator", fields: [createdBy], references: [id])
+  creator User @relation("ConversationCreator", fields: [createdBy], references: [id], onDelete: Cascade)
   members ConversationMember[]
 
   @@map("conversations")

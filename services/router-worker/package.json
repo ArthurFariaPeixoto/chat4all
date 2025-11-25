@@ -1,0 +1,26 @@
+{
+  "name": "router-worker",
+  "version": "0.0.1",
+  "description": "Router Worker - Distribui mensagens para conectores e atualiza status",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "start:dev": "ts-node src/index.ts",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": ["kafka", "worker", "router", "messages"],
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "mongodb": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
+

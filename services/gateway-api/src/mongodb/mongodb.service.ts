@@ -37,7 +37,7 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
       // Exemplo: mongodb://mongo:27017/app_db ou mongodb://mongo:27017
       let mongoUri = this.configService.get<string>(
         'MONGODB_URI',
-        'mongodb://localhost:27017',
+        'mongodb://mongo-router:27017',
       );
       
       // Extrair nome do banco da URI se estiver presente

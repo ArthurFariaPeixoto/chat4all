@@ -92,13 +92,9 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Kafka producer is not initialized');
     }
 
-    // Particionamento por conversation_id para garantir ordem
-    const partition = this.getPartition(event.conversation_id);
-    this.logger.debug(`[publishMessageEvent] Partição calculada - conversation_id: ${event.conversation_id}, partition: ${partition}`);
-
+    // O particionamento agora é tratado nativamente pelo KafkaJS usando a key (conversation_id)
     const message = {
       key: event.conversation_id, // Chave para particionamento
-      partition,
       value: JSON.stringify(event),
       headers: {
         'message-id': event.message_id,
@@ -108,7 +104,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       },
     };
 
-    this.logger.debug(`[publishMessageEvent] Mensagem preparada - key: ${message.key}, partition: ${message.partition}`);
+    this.logger.debug(`[publishMessageEvent] Mensagem preparada - key: ${message.key}`);
     this.logger.debug(`[publishMessageEvent] Payload da mensagem: ${message.value}`);
 
     try {
@@ -119,7 +115,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       });
 
       this.logger.log(
-        `[publishMessageEvent] Mensagem publicada com sucesso - message_id=${event.message_id}, conversation_id=${event.conversation_id}, partition=${partition}, topic=${topic}`,
+        `[publishMessageEvent] Mensagem publicada com sucesso - message_id=${event.message_id}, conversation_id=${event.conversation_id}, topic=${topic}`,
       );
       this.logger.debug(`[publishMessageEvent] Resultado completo: ${JSON.stringify(result)}`);
 
@@ -151,24 +147,6 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
       
       throw error;
     }
-  }
-
-  /**
-   * Calcula a partição baseada no conversation_id
-   * Usa hash simples para distribuir uniformemente
-   */
-  private getPartition(conversationId: string): number {
-    // Hash simples do conversation_id
-    let hash = 0;
-    for (let i = 0; i < conversationId.length; i++) {
-      const char = conversationId.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    
-    // Número de partições do tópico (3 conforme docker-compose)
-    const numPartitions = 3;
-    return Math.abs(hash) % numPartitions;
   }
 
   /**

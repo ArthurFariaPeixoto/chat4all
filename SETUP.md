@@ -21,8 +21,8 @@ O projeto é composto por três serviços principais:
 ### 1. Clonar e Configurar Variáveis de Ambiente
 
 ```bash
-# Criar arquivo .env na pasta services (usado pelo Docker)
-cp services/env.example services/.env
+# Criar arquivo .env na pasta SRE/envs (usado pelo Docker)
+cp SRE/envs/env.example SRE/envs/.env
 
 # Editar o arquivo .env e ajustar as variáveis conforme necessário
 # As principais variáveis já estão configuradas para funcionar com Docker Compose
@@ -273,7 +273,7 @@ npm run start:dev
 npx prisma generate
 
 # Verificar conexão com banco
-# Testar DATABASE_URL no arquivo .env
+# Testar DATABASE_URL no arquivo SRE/envs/.env
 ```
 
 ### Message Consumer não conecta ao Kafka
@@ -317,7 +317,7 @@ npx prisma migrate deploy
    docker compose ps
    ```
 
-2. Verificar as variáveis de ambiente no `services/.env`
+2. Verificar as variáveis de ambiente no `SRE/envs/.env`
 3. Aguardar o healthcheck completar (~30s para CockroachDB)
 4. Testar conexão manualmente:
    ```bash
@@ -425,7 +425,7 @@ Para mais detalhes sobre a implementação, consulte:
 
 ### Variáveis de Ambiente
 
-Todas as variáveis de ambiente estão definidas em `services/env.example`. Copie para `services/.env` e ajuste conforme necessário.
+Todas as variáveis de ambiente estão definidas em `SRE/envs/env.example`. Copie para `SRE/envs/.env` e ajuste conforme necessário.
 
 **Importante:** Em produção, altere as chaves JWT (`JWT_SECRET` e `JWT_REFRESH_SECRET`)!
 
