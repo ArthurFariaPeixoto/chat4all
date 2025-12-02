@@ -95,6 +95,8 @@ Para visualizar a documentação estilo OpenAPI dos serviços (se habilitado o w
 
 - Acesse: http://localhost:<PORTA_DO_APP>/api
 
+### 6. Detalhes sobre o Setup: [README - SETUP](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/SETUP.md)
+
 ---
 
 ## Outros README:
