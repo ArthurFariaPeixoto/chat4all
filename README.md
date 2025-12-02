@@ -100,19 +100,3 @@ Para visualizar a documentação estilo OpenAPI dos serviços (se habilitado o w
 ## Outros README:
 - [README - Message Consumer](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/services/message-consumer/README.md)
 - [README - Proto](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/services/proto/README.md)
-
-## Estrutura do Repositório
-
-```Plaintext/
-├── ops/                  # Configurações de Observabilidade (Prometheus, Grafana, Loki, Otel)
-├── database-init/        # Scripts de inicialização (CockroachDB, MongoDB)
-├── services/
-│   ├── gateway-api/      # API Principal (NestJS + Fastify + gRPC)
-│   ├── router-worker/    # Worker de Roteamento e Lógica (Kafka Consumer)
-│   ├── channel-connectors/ # Módulos de integração (WhatsApp, Telegram, Mock)
-│   ├── storage-service/  # Gerenciamento de arquivos (MinIO/S3)
-│   ├── presence-service/ # Gerenciamento de status online (Redis)
-│   └── proto/            # Contratos gRPC compartilhados
-├── docker-compose.yml    # Orquestração de containers
-└── README.md
-```
