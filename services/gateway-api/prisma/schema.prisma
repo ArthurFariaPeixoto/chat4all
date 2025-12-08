@@ -27,6 +27,7 @@ model User {
   // Relações
   conversations ConversationMember[]
   createdConversations Conversation[] @relation("ConversationCreator")
+  userChannels UserChannel[]
 
   @@map("users")
 }
@@ -63,5 +64,27 @@ model ConversationMember {
 
   @@unique([conversationId, userId])
   @@map("conversation_members")
+}
+
+model UserChannel {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  channelName       String   @map("channel_name") // "whatsapp", "instagram", "telegram", "messenger", "sms"
+  channelUserId     String   @map("channel_user_id") // ID do usuário no canal (phone, username, etc)
+  displayName       String?  @map("display_name") // Nome a exibir
+  credentials       Json?    // Credenciais encriptadas (token, API key, etc)
+  isActive          Boolean  @default(true) @map("is_active")
+  metadata          Json?    // Metadados adicionais do canal
+  webhookSecret     String?  @map("webhook_secret") // Secret para validar webhooks deste canal
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // Relações
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelName, channelUserId])
+  @@index([userId])
+  @@index([channelName])
+  @@map("user_channels")
 }
 

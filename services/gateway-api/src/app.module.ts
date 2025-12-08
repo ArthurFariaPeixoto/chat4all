@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConversationModule } from './conversations/conversation.module';
 import { MessageModule } from './messages/message.module';
 import { WebhookModule } from './webhooks/webhook.module';
+import { UserChannelModule } from './user-channels/user-channel.module';
 import { HealthController } from './health.controller';
 import { JwtInterceptor } from './auth/jwt-interceptor';
 
@@ -27,7 +28,7 @@ import { JwtInterceptor } from './auth/jwt-interceptor';
     ConversationModule,
     MessageModule,
     WebhookModule,
-    // Módulos serão adicionados aqui
+    UserChannelModule,
   ],
   controllers: [HealthController],
   providers: [
