@@ -54,3 +54,10 @@
 **/node_modules
 # Diagnostic reports (https://nodejs.org/api/report.html)
 /services/report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Test scripts
+FINAL_TEST_REPORT.md
+COMMIT_GUIDE_PHASE5.md
+
+# SRE config
+SRE/envs/.env
