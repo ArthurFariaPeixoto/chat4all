@@ -70,6 +70,83 @@ export class MessageController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @GrpcMethod('MessageService', 'MarkAsRead')
+  async markAsRead(
+    data: {
+      message_id: string;
+      conversation_id: string;
+    },
+    context?: any,
+  ): Promise<{ success: boolean; timestamp: number }> {
+    const userId = context?.user?.userId;
+    if (!userId) {
+      this.logger.error(`[MarkAsRead] UserId não encontrado no token`);
+      throw new Error('User ID not found in token');
+    }
+
+    this.logger.log(
+      `[MarkAsRead] message_id: ${data.message_id}, user_id: ${userId}`
+    );
+
+    try {
+      await this.messageService.markAsRead(
+        data.message_id,
+        data.conversation_id,
+        userId
+      );
+
+      return {
+        success: true,
+        timestamp: Math.floor(Date.now() / 1000),
+      };
+    } catch (error) {
+      this.logger.error(`[MarkAsRead] Erro:`, error.message);
+      throw error;
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @GrpcMethod('MessageService', 'GetMessageStatus')
+  async getMessageStatus(
+    data: { message_id: string; conversation_id: string },
+    context?: any,
+  ): Promise<{
+    message_id: string;
+    status: string;
+    timeline: Array<{
+      event: string;
+      timestamp: number;
+      user_id?: string;
+    }>;
+  }> {
+    const userId = context?.user?.userId;
+    if (!userId) {
+      this.logger.error(`[GetMessageStatus] UserId não encontrado no token`);
+      throw new Error('User ID not found in token');
+    }
+
+    this.logger.log(
+      `[GetMessageStatus] message_id: ${data.message_id}, user_id: ${userId}`
+    );
+
+    try {
+      const result = await this.messageService.getMessageStatus(
+        data.message_id,
+        data.conversation_id,
+        userId
+      );
+
+      this.logger.log(
+        `[GetMessageStatus] Status retornado - status: ${result.status}, events: ${result.timeline.length}`
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`[GetMessageStatus] Erro:`, error.message);
+      throw error;
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
   @GrpcMethod('MessageService', 'GetMessages')
   async getMessages(
     data: {

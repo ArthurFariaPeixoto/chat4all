@@ -6,6 +6,7 @@ import { KafkaModule } from './kafka/kafka.module';
 import { AuthModule } from './auth/auth.module';
 import { ConversationModule } from './conversations/conversation.module';
 import { MessageModule } from './messages/message.module';
+import { WebhookModule } from './webhooks/webhook.module';
 import { HealthController } from './health.controller';
 import { JwtInterceptor } from './auth/jwt-interceptor';
 
@@ -25,6 +26,7 @@ import { JwtInterceptor } from './auth/jwt-interceptor';
     AuthModule,
     ConversationModule,
     MessageModule,
+    WebhookModule,
     // Módulos serão adicionados aqui
   ],
   controllers: [HealthController],

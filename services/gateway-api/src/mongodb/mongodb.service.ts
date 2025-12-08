@@ -20,6 +20,16 @@ export interface MessageDocument {
   created_at: Date;
   seq?: number;
   status?: string;
+  // Campos de entrega e leitura
+  delivered_at?: Date;
+  delivered_to?: string[];
+  read_at?: Date;
+  read_by?: string[];
+  // Metadata de entrega (usado pelo router-worker)
+  delivery_metadata?: {
+    delivered_at?: Date | string;
+    channel?: string;
+  };
 }
 
 @Injectable()

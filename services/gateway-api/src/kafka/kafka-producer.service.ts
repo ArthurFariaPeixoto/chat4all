@@ -150,6 +150,63 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Publica um evento genérico no Kafka
+   * @param topic Tópico de destino
+   * @param event Dados do evento
+   * @param key Chave para particionamento (opcional)
+   * @returns Promise com informações da publicação
+   */
+  async publishEvent(
+    topic: string,
+    event: Record<string, any>,
+    key?: string,
+  ) {
+    this.logger.log(`[publishEvent] Iniciando publicação - topic: ${topic}, key: ${key || 'sem chave'}`);
+    
+    // Verificar se o producer está conectado
+    if (!this.producer) {
+      this.logger.error(`[publishEvent] Producer não está inicializado`);
+      throw new Error('Kafka producer is not initialized');
+    }
+
+    const message = {
+      key: key || undefined,
+      value: JSON.stringify(event),
+      headers: {
+        'event-timestamp': Date.now().toString(),
+        ...(event.message_id && { 'message-id': event.message_id }),
+        ...(event.conversation_id && { 'conversation-id': event.conversation_id }),
+        ...(event.user_id && { 'user-id': event.user_id }),
+      },
+    };
+
+    this.logger.debug(`[publishEvent] Mensagem preparada - topic: ${topic}, key: ${message.key}`);
+
+    try {
+      this.logger.log(`[publishEvent] Enviando evento para o Kafka - topic: ${topic}`);
+      const result = await this.producer.send({
+        topic,
+        messages: [message],
+      });
+
+      this.logger.log(
+        `[publishEvent] Evento publicado com sucesso - topic=${topic}, key=${key || 'sem chave'}`,
+      );
+      this.logger.debug(`[publishEvent] Resultado completo: ${JSON.stringify(result)}`);
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `[publishEvent] Falha ao publicar evento - topic=${topic}`,
+        error.stack || error.message,
+      );
+      this.logger.error(`[publishEvent] Detalhes do erro: ${JSON.stringify(error)}`);
+      
+      throw error;
+    }
+  }
+
+  /**
    * Verifica se o producer está conectado
    */
   async isConnected(): Promise<boolean> {

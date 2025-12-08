@@ -222,6 +222,158 @@ export class MessageService {
   /**
    * Obtém mensagens de uma conversa
    */
+  /**
+   * Marca mensagem como lida
+   */
+  async markAsRead(
+    messageId: string,
+    conversationId: string,
+    userId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `[markAsRead] message_id: ${messageId}, user_id: ${userId}`
+    );
+
+    // Validar que a conversa existe
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { members: true },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Validar que o usuário é membro
+    const isMember = conversation.members.some((m) => m.userId === userId);
+    if (!isMember) {
+      throw new BadRequestException('User is not a member of this conversation');
+    }
+
+    // Validar que a mensagem existe
+    const messagesCollection = this.mongoDBService.getMessagesCollection();
+    const message = await messagesCollection.findOne({
+      message_id: messageId,
+      conversation_id: conversationId,
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // Atualizar no MongoDB
+    const now = new Date();
+    await messagesCollection.updateOne(
+      { message_id: messageId },
+      {
+        $set: {
+          status: 'READ',
+          read_at: now,
+        },
+        $addToSet: {
+          read_by: userId,
+        },
+      }
+    );
+
+    this.logger.log(`[markAsRead] Mensagem marcada como lida - message_id: ${messageId}`);
+
+    // Publicar evento no Kafka
+    await this.kafkaProducer.publishEvent('messages.read', {
+      message_id: messageId,
+      conversation_id: conversationId,
+      user_id: userId,
+      read_at: now.getTime(),
+    });
+
+    this.logger.log(
+      `[markAsRead] Evento publicado em messages.read - message_id: ${messageId}`
+    );
+  }
+
+  /**
+   * Obtém status completo da mensagem com timeline
+   */
+  async getMessageStatus(
+    messageId: string,
+    conversationId: string,
+    userId: string,
+  ) {
+    this.logger.log(
+      `[getMessageStatus] message_id: ${messageId}, user_id: ${userId}`
+    );
+
+    // Validar acesso à conversa
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { members: true },
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    const isMember = conversation.members.some((m) => m.userId === userId);
+    if (!isMember) {
+      throw new NotFoundException('Conversation not found or access denied');
+    }
+
+    // Buscar mensagem no MongoDB
+    const messagesCollection = this.mongoDBService.getMessagesCollection();
+    const message = await messagesCollection.findOne({
+      message_id: messageId,
+      conversation_id: conversationId,
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // Construir timeline
+    const timeline: Array<{
+      event: string;
+      timestamp: number;
+      user_id?: string;
+    }> = [
+      {
+        event: 'SENT',
+        timestamp: message.created_at.getTime(),
+      },
+    ];
+
+    // Adicionar evento DELIVERED se existir
+    if (message.delivered_at) {
+      timeline.push({
+        event: 'DELIVERED',
+        timestamp: message.delivered_at.getTime(),
+      });
+    } else if (message.delivery_metadata?.delivered_at) {
+      const deliveredAt = typeof message.delivery_metadata.delivered_at === 'string'
+        ? new Date(message.delivery_metadata.delivered_at)
+        : message.delivery_metadata.delivered_at;
+      timeline.push({
+        event: 'DELIVERED',
+        timestamp: deliveredAt.getTime(),
+      });
+    }
+
+    // Adicionar evento READ se existir
+    // read_by é um array de user_ids (strings)
+    if (message.read_by && Array.isArray(message.read_by) && message.read_at) {
+      timeline.push({
+        event: 'READ',
+        timestamp: message.read_at.getTime(),
+        user_id: message.read_by.join(','), // Lista de usuários que leram
+      });
+    }
+
+    return {
+      message_id: messageId,
+      status: message.status,
+      timeline: timeline.sort((a, b) => a.timestamp - b.timestamp),
+    };
+  }
+
   async getMessages(
     conversationId: string,
     userId: string,
