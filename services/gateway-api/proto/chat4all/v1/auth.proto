@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package chat4all.v1;
+
+// ===========================
+// AuthService - Autenticação e Autorização
+// ===========================
+
+service AuthService {
+  // Registrar novo usuário
+  rpc RegisterUser(RegisterUserRequest) returns (RegisterUserResponse);
+  
+  // Obter token de acesso
+  rpc GetToken(GetTokenRequest) returns (GetTokenResponse);
+  
+  // Renovar token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  
+  // Revogar token
+  rpc RevokeToken(RevokeTokenRequest) returns (RevokeTokenResponse);
+  
+  // Validar token (interno)
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+// ===========================
+// Messages - GetToken
+// ===========================
+
+message GetTokenRequest {
+  string client_id = 1;
+  string client_secret = 2;
+  string grant_type = 3; // "client_credentials" ou "password"
+  optional string username = 4;
+  optional string password = 5;
+}
+
+message GetTokenResponse {
+  string access_token = 1;
+  string token_type = 2; // "Bearer"
+  int32 expires_in = 3; // em segundos
+  optional string refresh_token = 4;
+}
+
+// ===========================
+// Messages - RefreshToken
+// ===========================
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  int32 expires_in = 2;
+}
+
+// ===========================
+// Messages - RevokeToken
+// ===========================
+
+message RevokeTokenRequest {
+  string token = 1;
+}
+
+message RevokeTokenResponse {
+  bool success = 1;
+}
+
+// ===========================
+// Messages - ValidateToken
+// ===========================
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  optional string user_id = 2;
+  optional int64 expires_at = 3;
+}
+
+// ===========================
+// Messages - RegisterUser
+// ===========================
+
+message RegisterUserRequest {
+  string username = 1;
+  optional string email = 2;
+  string password = 3;
+  optional string display_name = 4;
+}
+
+message RegisterUserResponse {
+  string user_id = 1;
+  string username = 2;
+  optional string email = 3;
+  optional string display_name = 4;
+  int64 created_at = 5; // timestamp em segundos
+}
+

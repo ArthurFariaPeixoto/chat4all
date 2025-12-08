@@ -101,6 +101,47 @@ export class MongoDBService implements OnModuleInit, OnModuleDestroy {
     return this.messagesCollection;
   }
 
+  /**
+   * Insere um documento em uma coleção genérica
+   */
+  async insertOne(collectionName: string, document: any): Promise<any> {
+    const collection = this.db.collection(collectionName);
+    const result = await collection.insertOne(document);
+    return result;
+  }
+
+  /**
+   * Busca um documento em uma coleção genérica
+   */
+  async findOne(collectionName: string, filter: any): Promise<any> {
+    const collection = this.db.collection(collectionName);
+    return collection.findOne(filter);
+  }
+
+  /**
+   * Busca múltiplos documentos em uma coleção genérica
+   */
+  async find(collectionName: string, filter: any): Promise<any[]> {
+    const collection = this.db.collection(collectionName);
+    return collection.find(filter).toArray();
+  }
+
+  /**
+   * Deleta um documento em uma coleção genérica
+   */
+  async deleteOne(collectionName: string, filter: any): Promise<any> {
+    const collection = this.db.collection(collectionName);
+    return collection.deleteOne(filter);
+  }
+
+  /**
+   * Atualiza um documento em uma coleção genérica
+   */
+  async updateOne(collectionName: string, filter: any, update: any): Promise<any> {
+    const collection = this.db.collection(collectionName);
+    return collection.updateOne(filter, { $set: update });
+  }
+
   async onModuleDestroy() {
     try {
       if (this.mongoClient) {

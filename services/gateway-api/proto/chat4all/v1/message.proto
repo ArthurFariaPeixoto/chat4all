@@ -1,0 +1,233 @@
+syntax = "proto3";
+
+package chat4all.v1;
+
+import "chat4all/v1/common.proto";
+
+// ===========================
+// MessageService - Envio e Recebimento de Mensagens
+// ===========================
+
+service MessageService {
+  // Enviar mensagem
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  
+  // Obter histórico de mensagens
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse);
+  
+  // Stream de mensagens em tempo real
+  rpc StreamMessages(StreamMessagesRequest) returns (stream Message);
+  
+  // Obter status de uma mensagem
+  rpc GetMessageStatus(GetMessageStatusRequest) returns (GetMessageStatusResponse);
+  
+  // Marcar mensagens como entregues
+  rpc MarkAsDelivered(MarkAsDeliveredRequest) returns (MarkAsDeliveredResponse);
+  
+  // Marcar mensagens como lidas
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  
+  // Deletar mensagem
+  rpc DeleteMessage(DeleteMessageRequest) returns (DeleteMessageResponse);
+  
+  // Editar mensagem
+  rpc EditMessage(EditMessageRequest) returns (EditMessageResponse);
+  
+  // Buscar mensagens
+  rpc SearchMessages(SearchMessagesRequest) returns (SearchMessagesResponse);
+}
+
+// ===========================
+// Messages - SendMessage
+// ===========================
+
+message SendMessageRequest {
+  string message_id = 1; // UUID gerado pelo cliente (idempotência)
+  string conversation_id = 2;
+  string from = 3; // user_id do remetente
+  repeated string to = 4; // user_ids dos destinatários (opcional, usa membros da conversa)
+  repeated string channels = 5; // ["whatsapp", "telegram", "instagram", "all"]
+  MessagePayload payload = 6;
+  map<string, string> metadata = 7;
+}
+
+message MessagePayload {
+  MessageType type = 1;
+  optional string text = 2;
+  optional FileReference file = 3;
+  optional LocationData location = 4;
+  optional ContactData contact = 5;
+}
+
+message FileReference {
+  string file_id = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  optional string thumbnail_url = 5;
+}
+
+message LocationData {
+  double latitude = 1;
+  double longitude = 2;
+  optional string address = 3;
+}
+
+message ContactData {
+  string name = 1;
+  optional string phone = 2;
+  optional string email = 3;
+}
+
+message SendMessageResponse {
+  string message_id = 1;
+  MessageStatus status = 2;
+  int64 timestamp = 3;
+  int64 seq = 4; // sequence number na conversa
+}
+
+// ===========================
+// Messages - GetMessages
+// ===========================
+
+message GetMessagesRequest {
+  string conversation_id = 1;
+  optional int64 since_seq = 2; // obter mensagens após este seq
+  optional int64 until_seq = 3; // obter mensagens até este seq
+  optional int32 limit = 4; // default: 50, max: 100
+  optional bool reverse = 5; // ordenação reversa (mais recentes primeiro)
+}
+
+message GetMessagesResponse {
+  repeated Message messages = 1;
+  bool has_more = 2;
+  optional int64 next_seq = 3;
+}
+
+message Message {
+  string message_id = 1;
+  string conversation_id = 2;
+  string from = 3;
+  repeated string to = 4;
+  MessagePayload payload = 5;
+  map<string, string> metadata = 6;
+  int64 seq = 7;
+  MessageStatus status = 8;
+  int64 created_at = 9;
+  optional int64 delivered_at = 10;
+  optional int64 read_at = 11;
+  repeated ChannelDeliveryStatus channel_statuses = 12;
+}
+
+message ChannelDeliveryStatus {
+  string channel = 1; // "whatsapp", "telegram", etc.
+  MessageStatus status = 2;
+  optional string external_id = 3; // ID da mensagem na plataforma externa
+  optional string error = 4;
+}
+
+// ===========================
+// Messages - StreamMessages
+// ===========================
+
+message StreamMessagesRequest {
+  string user_id = 1;
+  repeated string conversation_ids = 2; // vazio = todas as conversas do usuário
+}
+
+// ===========================
+// Messages - GetMessageStatus
+// ===========================
+
+message GetMessageStatusRequest {
+  string message_id = 1;
+}
+
+message GetMessageStatusResponse {
+  string message_id = 1;
+  MessageStatus global_status = 2;
+  repeated ChannelDeliveryStatus channel_statuses = 3;
+  repeated RecipientStatus recipient_statuses = 4;
+}
+
+message RecipientStatus {
+  string user_id = 1;
+  MessageStatus status = 2;
+  optional int64 delivered_at = 3;
+  optional int64 read_at = 4;
+}
+
+// ===========================
+// Messages - MarkAsDelivered
+// ===========================
+
+message MarkAsDeliveredRequest {
+  string conversation_id = 1;
+  string user_id = 2;
+  int64 up_to_seq = 3;
+}
+
+message MarkAsDeliveredResponse {
+  bool success = 1;
+  int64 updated_seq = 2;
+}
+
+// ===========================
+// Messages - MarkAsRead
+// ===========================
+
+message MarkAsReadRequest {
+  string conversation_id = 1;
+  string user_id = 2;
+  int64 up_to_seq = 3;
+}
+
+message MarkAsReadResponse {
+  bool success = 1;
+  int64 updated_seq = 2;
+}
+
+// ===========================
+// Messages - DeleteMessage
+// ===========================
+
+message DeleteMessageRequest {
+  string message_id = 1;
+  bool delete_for_everyone = 2; // ou apenas para o usuário
+}
+
+message DeleteMessageResponse {
+  bool success = 1;
+}
+
+// ===========================
+// Messages - EditMessage
+// ===========================
+
+message EditMessageRequest {
+  string message_id = 1;
+  MessagePayload new_payload = 2;
+}
+
+message EditMessageResponse {
+  Message message = 1;
+}
+
+// ===========================
+// Messages - SearchMessages
+// ===========================
+
+message SearchMessagesRequest {
+  optional string conversation_id = 1; // vazio = buscar em todas
+  string query = 2;
+  optional MessageType type_filter = 3;
+  optional int64 from_timestamp = 4;
+  optional int64 to_timestamp = 5;
+  optional int32 limit = 6;
+}
+
+message SearchMessagesResponse {
+  repeated Message messages = 1;
+  int32 total_count = 2;
+}
+

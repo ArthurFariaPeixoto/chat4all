@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package chat4all.v1;
+
+// ===========================
+// Common Types and Enums
+// ===========================
+
+// Tipo de conversa
+enum ConversationType {
+  CONVERSATION_TYPE_UNSPECIFIED = 0;
+  CONVERSATION_TYPE_PRIVATE = 1;
+  CONVERSATION_TYPE_GROUP = 2;
+}
+
+// Papel do membro na conversa
+enum MemberRole {
+  MEMBER_ROLE_UNSPECIFIED = 0;
+  MEMBER_ROLE_MEMBER = 1;
+  MEMBER_ROLE_ADMIN = 2;
+  MEMBER_ROLE_OWNER = 3;
+}
+
+// Status de mensagem
+enum MessageStatus {
+  MESSAGE_STATUS_UNSPECIFIED = 0;
+  MESSAGE_STATUS_ACCEPTED = 1;
+  MESSAGE_STATUS_SENT = 2;
+  MESSAGE_STATUS_DELIVERED = 3;
+  MESSAGE_STATUS_READ = 4;
+  MESSAGE_STATUS_FAILED = 5;
+}
+
+// Tipo de mensagem
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TEXT = 1;
+  MESSAGE_TYPE_IMAGE = 2;
+  MESSAGE_TYPE_VIDEO = 3;
+  MESSAGE_TYPE_AUDIO = 4;
+  MESSAGE_TYPE_DOCUMENT = 5;
+  MESSAGE_TYPE_LOCATION = 6;
+  MESSAGE_TYPE_CONTACT = 7;
+}
+
+// Status de presença
+enum PresenceStatus {
+  PRESENCE_STATUS_UNSPECIFIED = 0;
+  PRESENCE_STATUS_ONLINE = 1;
+  PRESENCE_STATUS_AWAY = 2;
+  PRESENCE_STATUS_BUSY = 3;
+  PRESENCE_STATUS_OFFLINE = 4;
+}
+
+// Status de connector
+enum ConnectorStatus {
+  CONNECTOR_STATUS_UNSPECIFIED = 0;
+  CONNECTOR_STATUS_ACTIVE = 1;
+  CONNECTOR_STATUS_INACTIVE = 2;
+  CONNECTOR_STATUS_ERROR = 3;
+}
+
+// Eventos de webhook
+enum WebhookEvent {
+  WEBHOOK_EVENT_UNSPECIFIED = 0;
+  WEBHOOK_EVENT_MESSAGE_SENT = 1;
+  WEBHOOK_EVENT_MESSAGE_DELIVERED = 2;
+  WEBHOOK_EVENT_MESSAGE_READ = 3;
+  WEBHOOK_EVENT_MESSAGE_FAILED = 4;
+  WEBHOOK_EVENT_CONVERSATION_CREATED = 5;
+  WEBHOOK_EVENT_MEMBER_ADDED = 6;
+  WEBHOOK_EVENT_MEMBER_REMOVED = 7;
+}
+
+// ===========================
+// Common Message Types
+// ===========================
+
+// Resposta vazia padrão
+message Empty {}
+
+// Resposta de sucesso simples
+message SuccessResponse {
+  bool success = 1;
+  optional string message = 2;
+}
+

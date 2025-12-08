@@ -24,4 +24,15 @@ export class MinioService implements OnModuleInit {
     async getObject(bucket: string, objectName: string) {
         return this.client.getObject(bucket, objectName);
     }
+
+    async deleteObject(bucket: string, objectName: string) {
+        await this.client.removeObject(bucket, objectName);
+    }
+
+    async ensureBucketExists(bucket: string) {
+        const exists = await this.client.bucketExists(bucket);
+        if (!exists) {
+            await this.client.makeBucket(bucket, 'us-east-1');
+        }
+    }
 }

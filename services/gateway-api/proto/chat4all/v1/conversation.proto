@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package chat4all.v1;
+
+import "chat4all/v1/common.proto";
+
+// ===========================
+// ConversationService - Gestão de Conversas
+// ===========================
+
+service ConversationService {
+  // Criar nova conversa
+  rpc CreateConversation(CreateConversationRequest) returns (CreateConversationResponse);
+  
+  // Obter detalhes de conversa
+  rpc GetConversation(GetConversationRequest) returns (GetConversationResponse);
+  
+  // Listar conversas do usuário
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse);
+  
+  // Adicionar membros à conversa
+  rpc AddMembers(AddMembersRequest) returns (AddMembersResponse);
+  
+  // Remover membros da conversa
+  rpc RemoveMembers(RemoveMembersRequest) returns (RemoveMembersResponse);
+  
+  // Atualizar metadados da conversa
+  rpc UpdateConversation(UpdateConversationRequest) returns (UpdateConversationResponse);
+  
+  // Sair de uma conversa
+  rpc LeaveConversation(LeaveConversationRequest) returns (LeaveConversationResponse);
+  
+  // Arquivar/desarquivar conversa
+  rpc ArchiveConversation(ArchiveConversationRequest) returns (ArchiveConversationResponse);
+  
+  // Deletar conversa (apenas admin)
+  rpc DeleteConversation(DeleteConversationRequest) returns (DeleteConversationResponse);
+}
+
+// ===========================
+// Messages - CreateConversation
+// ===========================
+
+message CreateConversationRequest {
+  ConversationType type = 1; // PRIVATE ou GROUP
+  repeated string member_ids = 2;
+  optional string name = 3; // obrigatório para grupos
+  map<string, string> metadata = 4;
+}
+
+message CreateConversationResponse {
+  string conversation_id = 1;
+  int64 created_at = 2;
+}
+
+// ===========================
+// Messages - GetConversation
+// ===========================
+
+message GetConversationRequest {
+  string conversation_id = 1;
+}
+
+message GetConversationResponse {
+  Conversation conversation = 1;
+}
+
+message Conversation {
+  string id = 1;
+  ConversationType type = 2;
+  optional string name = 3;
+  repeated ConversationMember members = 4;
+  map<string, string> metadata = 5;
+  int64 created_at = 6;
+  string created_by = 7;
+  bool archived = 8;
+}
+
+message ConversationMember {
+  string user_id = 1;
+  MemberRole role = 2;
+  int64 joined_at = 3;
+  int64 last_read_seq = 4;
+  int64 last_delivered_seq = 5;
+}
+
+// ===========================
+// Messages - ListConversations
+// ===========================
+
+message ListConversationsRequest {
+  string user_id = 1;
+  optional bool include_archived = 2;
+  optional int32 page_size = 3;
+  optional string page_token = 4;
+}
+
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+  optional string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// ===========================
+// Messages - AddMembers
+// ===========================
+
+message AddMembersRequest {
+  string conversation_id = 1;
+  repeated string user_ids = 2;
+  optional MemberRole role = 3; // default: MEMBER
+}
+
+message AddMembersResponse {
+  repeated ConversationMember added_members = 1;
+}
+
+// ===========================
+// Messages - RemoveMembers
+// ===========================
+
+message RemoveMembersRequest {
+  string conversation_id = 1;
+  repeated string user_ids = 2;
+}
+
+message RemoveMembersResponse {
+  bool success = 1;
+}
+
+// ===========================
+// Messages - UpdateConversation
+// ===========================
+
+message UpdateConversationRequest {
+  string conversation_id = 1;
+  optional string name = 2;
+  map<string, string> metadata = 3;
+}
+
+message UpdateConversationResponse {
+  Conversation conversation = 1;
+}
+
+// ===========================
+// Messages - LeaveConversation
+// ===========================
+
+message LeaveConversationRequest {
+  string conversation_id = 1;
+  string user_id = 2;
+}
+
+message LeaveConversationResponse {
+  bool success = 1;
+}
+
+// ===========================
+// Messages - ArchiveConversation
+// ===========================
+
+message ArchiveConversationRequest {
+  string conversation_id = 1;
+  bool archived = 2;
+}
+
+message ArchiveConversationResponse {
+  bool success = 1;
+}
+
+// ===========================
+// Messages - DeleteConversation
+// ===========================
+
+message DeleteConversationRequest {
+  string conversation_id = 1;
+}
+
+message DeleteConversationResponse {
+  bool success = 1;
+}
+

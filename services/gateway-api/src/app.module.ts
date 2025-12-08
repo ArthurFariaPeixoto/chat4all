@@ -8,6 +8,8 @@ import { ConversationModule } from './conversations/conversation.module';
 import { MessageModule } from './messages/message.module';
 import { WebhookModule } from './webhooks/webhook.module';
 import { UserChannelModule } from './user-channels/user-channel.module';
+import { ProvidersModule } from './providers/providers.module';
+import { FilesModule } from './files/files.module';
 import { HealthController } from './health.controller';
 import { JwtInterceptor } from './auth/jwt-interceptor';
 
@@ -29,6 +31,8 @@ import { JwtInterceptor } from './auth/jwt-interceptor';
     MessageModule,
     WebhookModule,
     UserChannelModule,
+    ProvidersModule,
+    FilesModule,
   ],
   controllers: [HealthController],
   providers: [
