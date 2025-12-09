@@ -43,11 +43,22 @@ export class UserChannelService {
       }
 
       // Validar channelName
-      const validChannels = ['whatsapp', 'instagram', 'telegram', 'messenger', 'sms'];
+      const validChannels = ['whatsapp', 'instagram', 'telegram', 'messenger', 'sms', 'local'];
       if (!validChannels.includes(createDto.channelName.toLowerCase())) {
         this.logger.warn(`[createUserChannel] Canal inválido - channel: ${createDto.channelName}`);
         throw new BadRequestException(`Invalid channel. Valid channels: ${validChannels.join(', ')}`);
       }
+
+      // Logar dados que serão enviados para o banco
+      this.logger.debug(`[createUserChannel] Dados para criação: ${JSON.stringify({
+        userId,
+        channelName: createDto.channelName.toLowerCase(),
+        channelUserId: createDto.channelUserId,
+        displayName: createDto.displayName,
+        credentials: createDto.credentials,
+        isActive: createDto.isActive ?? true,
+        metadata: createDto.metadata,
+      })}`);
 
       // Criar canal
       const userChannel = await this.prisma.userChannel.create({
@@ -66,7 +77,10 @@ export class UserChannelService {
       this.logger.log(`[createUserChannel] Canal criado com sucesso - channelId: ${userChannel.id}`);
       return userChannel;
     } catch (error) {
-      this.logger.error(`[createUserChannel] Erro ao criar canal - userId: ${userId}`, error.stack);
+      this.logger.error(`[createUserChannel] Erro ao criar canal - userId: ${userId}`);
+      this.logger.error(`[createUserChannel] Detalhes do erro: ${error.message}`);
+      this.logger.error(`[createUserChannel] Stack: ${error.stack}`);
+      this.logger.error(`[createUserChannel] Dados recebidos: ${JSON.stringify(createDto)}`);
       throw error;
     }
   }

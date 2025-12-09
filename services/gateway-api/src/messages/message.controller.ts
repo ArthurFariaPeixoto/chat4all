@@ -1,13 +1,192 @@
-import { Controller, UseGuards, Logger } from '@nestjs/common';
+import { Controller, UseGuards, Logger, Post, Get, Patch, Body, Param, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { MessageService } from './message.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+// DTOs para REST API
+interface SendMessageDto {
+  conversationId: string;
+  content: string;
+  type?: string;
+  channels?: string[];
+  metadata?: Record<string, string>;
+}
+
+interface UpdateMessageStatusDto {
+  status: string;
+}
 
 @Controller()
 export class MessageController {
   private readonly logger = new Logger(MessageController.name);
 
   constructor(private messageService: MessageService) {}
+
+  // ============ REST API Endpoints ============
+  
+  @Post('messages')
+  @UseGuards(JwtAuthGuard)
+  async sendMessageRest(@Body() dto: SendMessageDto, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const payload = {
+        type: dto.type || 'text',
+        text: dto.content,
+      };
+
+      const result = await this.messageService.sendMessage(
+        messageId,
+        dto.conversationId,
+        userId,
+        dto.channels || ['local'],
+        payload,
+        dto.metadata,
+      );
+
+      // Garante que o campo 'id' esteja presente para facilitar o consumo pelo script
+      return {
+        id: result.message_id,
+        ...result
+      };
+    } catch (error) {
+      this.logger.error(`Error sending message: ${error.message}`);
+      throw new HttpException(
+        error.message || 'Erro ao enviar mensagem',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('messages/:id')
+  @UseGuards(JwtAuthGuard)
+  async getMessageRest(@Param('id') messageId: string, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      // Buscar mensagem diretamente do MongoDB
+      const mongoDBService = this.messageService['mongoDBService'];
+      const messagesCollection = mongoDBService.getMessagesCollection();
+      const message = await messagesCollection.findOne({ message_id: messageId });
+      
+      if (!message) {
+        throw new HttpException('Message not found', HttpStatus.NOT_FOUND);
+      }
+      
+      return {
+        id: message.message_id,
+        conversationId: message.conversation_id,
+        senderId: message.from,
+        status: message.status || 'SENT',
+        content: message.payload?.text,
+        type: message.payload?.type,
+        sentAt: message.created_at,
+        readAt: message.read_at,
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao buscar mensagem',
+        error.status || HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  @Patch('messages/:id/status')
+  @UseGuards(JwtAuthGuard)
+  async updateMessageStatusRest(
+    @Param('id') messageId: string,
+    @Body() dto: UpdateMessageStatusDto,
+    @Req() req: any
+  ) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      // Buscar a mensagem para obter o conversationId
+      const mongoDBService = this.messageService['mongoDBService'];
+      const messagesCollection = mongoDBService.getMessagesCollection();
+      const message = await messagesCollection.findOne({ message_id: messageId });
+      
+      if (!message) {
+        throw new HttpException('Message not found', HttpStatus.NOT_FOUND);
+      }
+
+      // Marcar como lido se o status for READ ou DELIVERED
+      if (dto.status.toUpperCase() === 'READ') {
+        await this.messageService.markAsRead(messageId, message.conversation_id, userId);
+      } else if (dto.status.toUpperCase() === 'DELIVERED') {
+        // Atualizar status para DELIVERED
+        await messagesCollection.updateOne(
+          { message_id: messageId },
+          { $set: { status: 'DELIVERED', delivered_at: new Date() } }
+        );
+      }
+      
+      return { success: true, status: dto.status };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao atualizar status',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('messages/:id/history')
+  @UseGuards(JwtAuthGuard)
+  async getMessageHistoryRest(@Param('id') messageId: string, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      // Buscar mensagem do MongoDB
+      const mongoDBService = this.messageService['mongoDBService'];
+      const messagesCollection = mongoDBService.getMessagesCollection();
+      const message = await messagesCollection.findOne({ message_id: messageId });
+      
+      if (!message) {
+        throw new HttpException('Message not found', HttpStatus.NOT_FOUND);
+      }
+      
+      const history = [];
+      if (message.created_at) {
+        history.push({ status: 'SENT', timestamp: message.created_at });
+      }
+      if (message.delivered_at) {
+        history.push({ status: 'DELIVERED', timestamp: message.delivered_at });
+      }
+      if (message.read_at) {
+        history.push({ status: 'READ', timestamp: message.read_at });
+      }
+      
+      return {
+        messageId: message.message_id,
+        history: history,
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao buscar histórico',
+        error.status || HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  // ============ gRPC Endpoints ============
 
   @UseGuards(JwtAuthGuard)
   @GrpcMethod('MessageService', 'SendMessage')

@@ -31,8 +31,10 @@
     "@nestjs/microservices": "^11.1.8",
     "@nestjs/passport": "^11.0.0",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.9",
     "@nestjs/swagger": "^11.2.1",
     "@nestjs/throttler": "^6.4.0",
+    "@nestjs/websockets": "^11.0.0",
     "@prisma/client": "^6.18.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
@@ -40,13 +42,16 @@
     "dotenv": "^17.2.3",
     "ioredis": "^5.8.2",
     "kafkajs": "^2.2.4",
+    "minio": "^8.0.1",
     "mongodb": "^6.3.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "prisma": "^6.18.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "uuid": "^9.0.1"
+    "socket.io": "^4.8.1",
+    "uuid": "^9.0.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

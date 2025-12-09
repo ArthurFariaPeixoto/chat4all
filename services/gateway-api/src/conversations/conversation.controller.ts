@@ -1,11 +1,119 @@
-import { Controller, UseGuards, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, UseGuards, BadRequestException, NotFoundException, Post, Get, Body, Param, Req, HttpException, HttpStatus } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import { ConversationService } from './conversation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+// DTOs para REST API
+interface CreateConversationDto {
+  type: string;
+  participantIds: string[];
+  name?: string;
+  metadata?: Record<string, string>;
+}
+
 @Controller()
 export class ConversationController {
   constructor(private conversationService: ConversationService) {}
+
+  // ============ REST API Endpoints ============
+  
+  @Post('conversations')
+  @UseGuards(JwtAuthGuard)
+  async createConversationRest(@Body() dto: CreateConversationDto, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      const conversationType = dto.type.toUpperCase();
+      const memberIds = [...new Set([userId, ...dto.participantIds])];
+
+      const result = await this.conversationService.createConversation(
+        conversationType,
+        memberIds,
+        userId,
+        dto.name,
+        dto.metadata,
+      );
+
+      // Garante que o campo 'id' esteja presente para facilitar o consumo pelo script
+      return {
+        id: result.conversation_id,
+        ...result
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao criar conversa',
+        error.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Get('conversations')
+  @UseGuards(JwtAuthGuard)
+  async listConversationsRest(@Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      const result = await this.conversationService.listConversations(userId);
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao listar conversas',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Get('conversations/:id')
+  @UseGuards(JwtAuthGuard)
+  async getConversationRest(@Param('id') id: string, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      const result = await this.conversationService.getConversation(id, userId);
+      return result;
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao buscar conversa',
+        error.status || HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  @Get('conversations/:id/messages')
+  @UseGuards(JwtAuthGuard)
+  async getConversationMessagesRest(@Param('id') conversationId: string, @Req() req: any) {
+    try {
+      const userId = req.user?.userId || req.user?.sub;
+      
+      if (!userId) {
+        throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
+      }
+
+      // Verificar se o usuário tem acesso à conversa
+      await this.conversationService.getConversation(conversationId, userId);
+      
+      // Retornar mensagens (implementar depois)
+      return [];
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao buscar mensagens',
+        error.status || HttpStatus.NOT_FOUND,
+      );
+    }
+  }
+
+  // ============ gRPC Endpoints ============
 
   @UseGuards(JwtAuthGuard)
   @GrpcMethod('ConversationService', 'CreateConversation')

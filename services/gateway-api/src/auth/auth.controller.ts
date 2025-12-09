@@ -1,4 +1,4 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { GrpcMethod, RpcException } from '@nestjs/microservices';
 import { AuthService } from './auth.service';
 
@@ -8,9 +8,105 @@ interface RefreshTokenRequest {
   refreshToken?: string; // Suporte para camelCase também
 }
 
+// DTOs para REST API
+interface RegisterDto {
+  username: string;
+  email: string;
+  password: string;
+  displayName?: string;
+}
+
+interface LoginDto {
+  email: string;
+  password: string;
+}
+
+interface RefreshDto {
+  refreshToken: string;
+}
+
 @Controller()
 export class AuthController {
   constructor(private authService: AuthService) {}
+
+  // ============ REST API Endpoints ============
+  
+  @Post('auth/register')
+  async registerUserRest(@Body() dto: RegisterDto) {
+    try {
+      const result = await this.authService.registerUser(
+        dto.username,
+        dto.email,
+        dto.password,
+        dto.displayName,
+      );
+      
+      return {
+        id: result.user_id,
+        username: result.username,
+        email: result.email,
+        displayName: result.display_name,
+        createdAt: result.created_at,
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Erro ao registrar usuário',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('auth/login')
+  async loginRest(@Body() dto: LoginDto) {
+    try {
+      const result = await this.authService.getToken(
+        'default-client',
+        'default-secret',
+        'password',
+        dto.email,
+        dto.password,
+      );
+      
+      // Decodificar o token para obter informações do usuário
+      const decoded: any = this.authService['jwtService'].decode(result.access_token);
+      
+      return {
+        accessToken: result.access_token,
+        tokenType: result.token_type,
+        expiresIn: result.expires_in,
+        refreshToken: result.refresh_token,
+        user: {
+          id: decoded.sub || decoded.user_id,
+          username: decoded.username,
+          email: decoded.email,
+        },
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Credenciais inválidas',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+  }
+
+  @Post('auth/refresh')
+  async refreshTokenRest(@Body() dto: RefreshDto) {
+    try {
+      const result = await this.authService.refreshToken(dto.refreshToken);
+      
+      return {
+        accessToken: result.access_token,
+        expiresIn: result.expires_in,
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Token inválido',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+  }
+
+  // ============ gRPC Endpoints ============
 
   @GrpcMethod('AuthService', 'RegisterUser')
   async registerUser(data: any) {

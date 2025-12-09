@@ -85,6 +85,7 @@ Os testes e2e cobrem:
 - ✅ ConversationService (Create, Get, List, AddMembers)
 - ✅ MessageService (SendMessage, GetMessages)
 - ✅ Fluxo completo end-to-end
+- 🔄 Para eventos em tempo real, conectar no `/ws` e observar broadcast após `SendMessage` (mesmo processo de testes manuais ou via client-web).
 
 Para mais detalhes, consulte [test/README.md](./test/README.md).
 
@@ -152,10 +153,16 @@ Router Worker (futuro) → Persistência
 
 - **gRPC**: 50051
 - **HTTP**: 3000 (health checks)
+- **WebSocket (realtime)**: `/ws` (envia `join` com `{ userId }` e recebe eventos `messages.send`, `messages.delivery`, `messages.read`)
 
 ## Health Check
 
 ```bash
 curl http://localhost:3000/health
 ```
+
+## Armazenamento de Arquivos
+
+- Local (default): salva em `FILE_STORAGE_PATH` (padrão `/tmp/chat4all-files`).
+- MinIO/S3: habilite `MINIO_ENDPOINT`, `MINIO_PORT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_USE_SSL`, `MINIO_PUBLIC_URL`. O serviço cria o bucket `chat4all-files` se não existir.
 

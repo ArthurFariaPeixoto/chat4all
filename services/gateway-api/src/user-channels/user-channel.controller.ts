@@ -18,9 +18,10 @@ export class UserChannelController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Request() req, @Body() createDto: CreateUserChannelDto) {
-    this.logger.log(`[create] Criando canal - userId: ${req.user.id}`);
+    const userId = req.user?.userId || req.user?.sub;
+    this.logger.log(`[create] Criando canal - userId: ${userId}`);
 
-    const channel = await this.userChannelService.createUserChannel(req.user.id, createDto);
+    const channel = await this.userChannelService.createUserChannel(userId, createDto);
 
     return {
       success: true,
@@ -35,9 +36,10 @@ export class UserChannelController {
    */
   @Get()
   async list(@Request() req) {
-    this.logger.log(`[list] Listando canais - userId: ${req.user.id}`);
+    const userId = req.user?.userId || req.user?.sub;
+    this.logger.log(`[list] Listando canais - userId: ${userId}`);
 
-    const channels = await this.userChannelService.listUserChannels(req.user.id);
+    const channels = await this.userChannelService.listUserChannels(userId);
 
     return {
       success: true,
@@ -52,9 +54,10 @@ export class UserChannelController {
    */
   @Get(':id')
   async getOne(@Request() req, @Param('id') channelId: string) {
-    this.logger.log(`[getOne] Buscando canal - userId: ${req.user.id}, channelId: ${channelId}`);
+    const userId = req.user?.userId || req.user?.sub;
+    this.logger.log(`[getOne] Buscando canal - userId: ${userId}, channelId: ${channelId}`);
 
-    const channel = await this.userChannelService.getUserChannel(req.user.id, channelId);
+    const channel = await this.userChannelService.getUserChannel(userId, channelId);
 
     return {
       success: true,
@@ -68,9 +71,10 @@ export class UserChannelController {
    */
   @Put(':id')
   async update(@Request() req, @Param('id') channelId: string, @Body() updateDto: UpdateUserChannelDto) {
-    this.logger.log(`[update] Atualizando canal - userId: ${req.user.id}, channelId: ${channelId}`);
+    const userId = req.user?.userId || req.user?.sub;
+    this.logger.log(`[update] Atualizando canal - userId: ${userId}, channelId: ${channelId}`);
 
-    const channel = await this.userChannelService.updateUserChannel(req.user.id, channelId, updateDto);
+    const channel = await this.userChannelService.updateUserChannel(userId, channelId, updateDto);
 
     return {
       success: true,
@@ -86,9 +90,10 @@ export class UserChannelController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   async delete(@Request() req, @Param('id') channelId: string) {
-    this.logger.log(`[delete] Deletando canal - userId: ${req.user.id}, channelId: ${channelId}`);
+    const userId = req.user?.userId || req.user?.sub;
+    this.logger.log(`[delete] Deletando canal - userId: ${userId}, channelId: ${channelId}`);
 
-    const result = await this.userChannelService.deleteUserChannel(req.user.id, channelId);
+    const result = await this.userChannelService.deleteUserChannel(userId, channelId);
 
     return {
       success: true,

@@ -1,11 +1,20 @@
 import { Kafka, Consumer, EachMessagePayload, Producer } from 'kafkajs';
 import { MongoClient, Db, Collection } from 'mongodb';
 
+interface Destination {
+  user_id: string;
+  channels: Array<{
+    channel: string;
+    channel_user_id?: string;
+    display_name?: string | null;
+  }>;
+}
+
 interface MessageEvent {
   message_id: string;
   conversation_id: string;
   from: string;
-  to: string[];
+  to: Destination[];
   channels: string[];
   payload: {
     type: string;
@@ -22,7 +31,7 @@ interface MessageDocument {
   message_id: string;
   conversation_id: string;
   from: string;
-  to: string[];
+  to: Destination[];
   channels: string[];
   payload: {
     type: string;
@@ -223,6 +232,24 @@ class MessageConsumer {
       console.log(
         `[MessageConsumer] Mensagem persistida no MongoDB - message_id: ${event.message_id}, status: SENT`,
       );
+
+      // Publicar evento de criação para streaming em tempo real
+      await this.producer.send({
+        topic: 'messages.send',
+        messages: [
+          {
+            key: event.conversation_id,
+            value: JSON.stringify({
+              message_id: event.message_id,
+              conversation_id: event.conversation_id,
+              from: event.from,
+              to: event.to,
+              status: 'SENT',
+              timestamp: Date.now(),
+            }),
+          },
+        ],
+      });
 
       // Encaminhar para o próximo estágio (Router/Connector)
       const routingTopic = 'messages.routing';

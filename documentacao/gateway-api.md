@@ -167,6 +167,14 @@ Endpoint HTTP para verificação de saúde do serviço.
 - **Número de Partições**: 3 (configurável)
 - **Headers**: `message-id`, `conversation-id`, `from`, `timestamp`
 
+#### Realtime (WebSocket)
+- Gateway WebSocket em `/ws` usando adapter `ws`.
+- Fluxo: conecte, envie evento `join` com `{ userId }`, receba eventos broadcast de `messages.send`, `messages.delivery`, `messages.read` provenientes do Kafka.
+
+#### Conectores / Adapters
+- Arquitetura de plugin com adapters mock (`whatsapp`, `instagram`, `telegram`) em `connectors/channel.adapter.ts`.
+- Novos adapters podem ser registrados em runtime via `ConnectorService.uploadConnector`, mantendo contrato: `connect()`, `sendMessage()`, `sendFile()`, `webhookHandler()` (opcional).
+
 #### MongoDB Service (`mongodb/mongodb.service.ts`)
 - **Database**: `app_db`
 - **Collection**: `messages`

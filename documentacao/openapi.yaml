@@ -16,6 +16,8 @@ servers:
     description: Servidor gRPC Local
   - url: http://localhost:3000
     description: Servidor HTTP (apenas Health Check)
+  - url: ws://localhost:3000/ws
+    description: WebSocket para eventos em tempo real (join com {"userId"})
 
 components:
   securitySchemes:
@@ -211,6 +213,20 @@ components:
         created_at:
           type: integer
           format: int64
+        delivery_metadata:
+          type: array
+          items:
+            type: object
+            properties:
+              channel:
+                type: string
+              delivered_at:
+                type: integer
+                format: int64
+              status:
+                type: string
+              target:
+                type: string
 
     MessagePayload:
       type: object
@@ -280,6 +296,25 @@ components:
           type: array
           items:
             type: string
+        to:
+          description: Destinos resolvidos (preenchido pelo backend após mapear user-channels)
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: string
+              channels:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    channel:
+                      type: string
+                    channel_user_id:
+                      type: string
+                    display_name:
+                      type: string
         payload:
           $ref: '#/components/schemas/MessagePayload'
         metadata:
@@ -474,6 +509,8 @@ paths:
                   seq:
                     type: integer
                     format: int64
+                   to:
+                     $ref: '#/components/schemas/SendMessageRequest/properties/to'
 
   /MessageService/GetMessages:
     post:

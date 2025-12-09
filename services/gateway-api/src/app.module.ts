@@ -12,6 +12,7 @@ import { ProvidersModule } from './providers/providers.module';
 import { FilesModule } from './files/files.module';
 import { HealthController } from './health.controller';
 import { JwtInterceptor } from './auth/jwt-interceptor';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { JwtInterceptor } from './auth/jwt-interceptor';
     UserChannelModule,
     ProvidersModule,
     FilesModule,
+    RealtimeModule,
   ],
   controllers: [HealthController],
   providers: [

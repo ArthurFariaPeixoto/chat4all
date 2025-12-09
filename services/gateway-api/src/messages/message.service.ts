@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import { MongoDBService, MessageDocument } from '../mongodb/mongodb.service';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class MessageService {
@@ -17,7 +18,7 @@ export class MessageService {
    * Envia uma mensagem (publica evento no Kafka)
    */
   async sendMessage(
-    messageId: string,
+    messageId: string | undefined,
     conversationId: string,
     userId: string,
     channels: string[],
@@ -30,6 +31,8 @@ export class MessageService {
     },
     metadata?: Record<string, string>,
   ) {
+    // Garantir idempotência gerando um message_id universal se não foi enviado pelo cliente
+    const effectiveMessageId = messageId || uuidv4();
     this.logger.log(`[sendMessage] Iniciando processamento - message_id: ${messageId}, conversation_id: ${conversationId}, userId: ${userId}`);
 
     // Validar que a conversa existe
@@ -63,7 +66,7 @@ export class MessageService {
     this.logger.debug(`[sendMessage] Payload validado com sucesso - type normalizado: ${payload.type}`);
 
     // Validar canais
-    const validChannels = ['whatsapp', 'telegram', 'instagram', 'all'];
+    const validChannels = ['whatsapp', 'telegram', 'instagram', 'all', 'local'];
     const invalidChannels = channels.filter((c) => !validChannels.includes(c.toLowerCase()));
     if (invalidChannels.length > 0) {
       this.logger.error(`[sendMessage] Canais inválidos - channels: ${channels.join(', ')}, inválidos: ${invalidChannels.join(', ')}`);
@@ -72,12 +75,38 @@ export class MessageService {
 
     this.logger.debug(`[sendMessage] Canais validados - channels: ${channels.join(', ')}`);
 
-    // Criar evento para Kafka - conversation_id e from, o worker buscará os membros para calcular destinatários
+    // Carregar mapeamentos de canais para todos os membros (exceto remetente)
+    const memberIds = conversation.members.map((m) => m.userId).filter((id) => id !== userId);
+    const userChannels = await this.prisma.userChannel.findMany({
+      where: { userId: { in: memberIds }, isActive: true },
+    });
+
+    // Determinar canais a usar: se incluir "all" usamos todos que o destinatário possui; caso contrário somente os solicitados
+    const normalizedChannels = channels.map((c) => c.toLowerCase());
+
+    const destinations = memberIds.map((recipientId) => {
+      const mappings = userChannels.filter((c) => c.userId === recipientId);
+      const selected = normalizedChannels.includes('all')
+        ? mappings
+        : mappings.filter((m) => normalizedChannels.includes(m.channelName.toLowerCase()));
+
+      return {
+        user_id: recipientId,
+        channels: selected.map((m) => ({
+          channel: m.channelName,
+          channel_user_id: m.channelUserId,
+          display_name: m.displayName,
+        })),
+      };
+    });
+
+    // Criar evento para Kafka com destinos já calculados
     const event = {
-      message_id: messageId,
+      message_id: effectiveMessageId,
       conversation_id: conversationId,
       from: userId,
-      channels: channels.map((c) => c.toLowerCase()),
+      to: destinations,
+      channels: normalizedChannels,
       payload: {
         type: payload.type,
         text: payload.text,
@@ -96,12 +125,12 @@ export class MessageService {
     try {
       this.logger.log(`[sendMessage] Publicando evento no Kafka - message_id: ${messageId}, topic: messages.send`);
       const publishResult = await this.kafkaProducer.publishMessageEvent(event);
-      this.logger.log(`[sendMessage] Evento publicado com sucesso no Kafka - message_id: ${messageId}`);
+      this.logger.log(`[sendMessage] Evento publicado com sucesso no Kafka - message_id: ${effectiveMessageId}`);
       this.logger.debug(`[sendMessage] Resultado da publicação: ${JSON.stringify(publishResult)}`);
 
       // Retornar resposta imediata
       const response = {
-        message_id: messageId,
+        message_id: effectiveMessageId,
         status: 'ACCEPTED', // Status inicial - será atualizado pelo worker
         timestamp: Math.floor(Date.now() / 1000),
         seq: 0, // Será gerado pelo worker
@@ -341,11 +370,24 @@ export class MessageService {
       },
     ];
 
-    // Adicionar evento DELIVERED se existir
+    // Adicionar evento DELIVERED se existir (suporta array de delivery_metadata)
     if (message.delivered_at) {
       timeline.push({
         event: 'DELIVERED',
         timestamp: message.delivered_at.getTime(),
+      });
+    } else if (Array.isArray(message.delivery_metadata)) {
+      message.delivery_metadata.forEach((entry: any) => {
+        if (entry?.delivered_at) {
+          const deliveredAt = typeof entry.delivered_at === 'string'
+            ? new Date(entry.delivered_at)
+            : entry.delivered_at;
+          timeline.push({
+            event: 'DELIVERED',
+            timestamp: deliveredAt.getTime(),
+            user_id: entry.target,
+          });
+        }
       });
     } else if (message.delivery_metadata?.delivered_at) {
       const deliveredAt = typeof message.delivery_metadata.delivered_at === 'string'

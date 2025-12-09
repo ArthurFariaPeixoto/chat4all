@@ -4,6 +4,7 @@ import { MongoDBService } from '../mongodb/mongodb.service';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Client as MinioClient } from 'minio';
 import { FileMetadataDto } from './dto/upload.dto';
 
 @Injectable()
@@ -34,10 +35,33 @@ export class FileService {
     private prismaService: PrismaService,
     private mongoDBService: MongoDBService,
   ) {
-    this.ensureStoragePath();
+    this.initStorage();
   }
 
-  private ensureStoragePath() {
+  private minio: MinioClient | null = null;
+  private usingObjectStorage = false;
+
+  private initStorage() {
+    const endpoint = process.env.MINIO_ENDPOINT;
+    if (endpoint) {
+      this.logger.log(`[FileService] Inicializando MinIO/S3 endpoint=${endpoint}`);
+      this.minio = new MinioClient({
+        endPoint: endpoint,
+        port: Number(process.env.MINIO_PORT || 9000),
+        useSSL: process.env.MINIO_USE_SSL === 'true',
+        accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
+        secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+      });
+      this.usingObjectStorage = true;
+      // Ensure bucket exists (best effort)
+      this.minio.bucketExists(this.BUCKET_NAME).catch(async () => {
+        await this.minio!.makeBucket(this.BUCKET_NAME, 'us-east-1');
+        this.logger.log(`[FileService] Bucket criado: ${this.BUCKET_NAME}`);
+      }).catch((err) => this.logger.warn(`[FileService] Falha ao criar bucket: ${err.message}`));
+      return;
+    }
+
+    // Fallback para filesystem local
     try {
       if (!fs.existsSync(this.STORAGE_PATH)) {
         fs.mkdirSync(this.STORAGE_PATH, { recursive: true });
@@ -112,23 +136,32 @@ export class FileService {
       // Gerar nome único no storage (evita conflitos)
       const fileId = crypto.randomUUID();
       const storagePath = `${conversationId}/${messageId}/${fileId}/${fileName}`;
-      const fullPath = path.join(this.STORAGE_PATH, storagePath);
+      let fileUrl = '';
 
-      // Criar diretório se não existir
-      const dirPath = path.dirname(fullPath);
-      if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, { recursive: true });
-        this.logger.debug(`[uploadFile] Diretório criado - path: ${dirPath}`);
+      if (this.usingObjectStorage && this.minio) {
+        await this.minio.putObject(this.BUCKET_NAME, storagePath, fileBuffer, fileSize, {
+          'Content-Type': mimeType,
+        });
+        fileUrl = `${process.env.MINIO_PUBLIC_URL || ''}/${this.BUCKET_NAME}/${storagePath}`;
+        this.logger.log(`[uploadFile] Arquivo salvo no objeto storage - ${fileUrl}`);
+      } else {
+        const fullPath = path.join(this.STORAGE_PATH, storagePath);
+
+        // Criar diretório se não existir
+        const dirPath = path.dirname(fullPath);
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+          this.logger.debug(`[uploadFile] Diretório criado - path: ${dirPath}`);
+        }
+
+        // Salvar arquivo localmente
+        this.logger.debug(`[uploadFile] Salvando arquivo localmente - path: ${fullPath}`);
+        fs.writeFileSync(fullPath, fileBuffer);
+
+        // Gerar URL de acesso local
+        fileUrl = `/files/storage/${storagePath}`;
+        this.logger.log(`[uploadFile] Arquivo salvo com sucesso - fileUrl: ${fileUrl}`);
       }
-
-      // Salvar arquivo localmente
-      this.logger.debug(`[uploadFile] Salvando arquivo localmente - path: ${fullPath}`);
-      fs.writeFileSync(fullPath, fileBuffer);
-
-      // Gerar URL de acesso
-      const fileUrl = `/files/storage/${storagePath}`;
-
-      this.logger.log(`[uploadFile] Arquivo salvo com sucesso - fileUrl: ${fileUrl}`);
 
       // Salvar metadados no MongoDB
       const fileMetadata = {

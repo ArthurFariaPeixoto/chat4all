@@ -1,16 +1,63 @@
 import { Kafka, Consumer, EachMessagePayload, Producer } from 'kafkajs';
 import { MongoClient, Db, Collection } from 'mongodb';
 
+interface Destination {
+  user_id: string;
+  channels: Array<{
+    channel: string;
+    channel_user_id?: string;
+    display_name?: string | null;
+  }>;
+}
+
 interface MessageEvent {
   message_id: string;
   conversation_id: string;
   from: string;
-  to: string[];
+  to: Destination[];
   channels: string[];
   payload: any;
   metadata?: Record<string, string>;
   timestamp: number;
   status?: string;
+}
+
+interface ChannelAdapter {
+  sendMessage(payload: {
+    conversationId: string;
+    messageId: string;
+    from: string;
+    to: string;
+    text?: string;
+    metadata?: Record<string, any>;
+  }): Promise<{ status: 'DELIVERED' | 'SENT' | 'FAILED'; deliveredAt?: number }>;
+  sendFile(payload: {
+    conversationId: string;
+    messageId: string;
+    from: string;
+    to: string;
+    fileUrl: string;
+    mimeType: string;
+    size: number;
+    metadata?: Record<string, any>;
+  }): Promise<{ status: 'DELIVERED' | 'SENT' | 'FAILED'; deliveredAt?: number }>;
+}
+
+class MockAdapter implements ChannelAdapter {
+  constructor(private readonly type: string) {}
+
+  async sendMessage(payload: any) {
+    // Simular entrega
+    const delay = Math.floor(Math.random() * 300) + 100;
+    await new Promise((r) => setTimeout(r, delay));
+    return { status: 'DELIVERED', deliveredAt: Date.now() };
+  }
+
+  async sendFile(payload: any) {
+    const delay = Math.floor(Math.random() * 300) + 100;
+    await new Promise((r) => setTimeout(r, delay));
+    return { status: 'DELIVERED', deliveredAt: Date.now() };
+  }
 }
 
 class RouterWorker {
@@ -21,6 +68,11 @@ class RouterWorker {
   private db!: Db;
   private dbName: string;
   private messagesCollection!: Collection;
+  private adapters: Record<string, ChannelAdapter> = {
+    whatsapp: new MockAdapter('whatsapp'),
+    instagram: new MockAdapter('instagram'),
+    telegram: new MockAdapter('telegram'),
+  };
   private isRunning = false;
 
   constructor() {
@@ -117,44 +169,74 @@ class RouterWorker {
 
       const event: MessageEvent = JSON.parse(message.value?.toString() || '{}');
 
-      // Simular envio para conector (delay aleatório)
-      const delay = Math.floor(Math.random() * 500) + 100; // 100-600ms
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Para cada destinatário e canal, enviar via adapter
+      for (const destination of event.to || []) {
+        for (const channelCfg of destination.channels || []) {
+          const adapter = this.adapters[channelCfg.channel.toLowerCase()];
+          if (!adapter) {
+            console.warn(`[RouterWorker] Adapter não encontrado para canal ${channelCfg.channel}`);
+            continue;
+          }
 
-      // Atualizar status no MongoDB
-      const result = await this.messagesCollection.updateOne(
-        { message_id: event.message_id, conversation_id: event.conversation_id },
-        { 
-          $set: { 
-            status: 'DELIVERED',
-            updated_at: new Date(),
-            delivery_metadata: {
-              delivered_at: new Date(),
-              connector_delay: delay,
-              simulated: true
-            }
-          } 
+          const isFile = !!event.payload?.file;
+          const result = isFile
+            ? await adapter.sendFile({
+                conversationId: event.conversation_id,
+                messageId: event.message_id,
+                from: event.from,
+                to: channelCfg.channel_user_id || destination.user_id,
+                fileUrl: event.payload?.file?.url || event.payload?.file?.file_id,
+                mimeType: event.payload?.file?.mime_type || 'application/octet-stream',
+                size: event.payload?.file?.size || 0,
+                metadata: event.metadata,
+              })
+            : await adapter.sendMessage({
+                conversationId: event.conversation_id,
+                messageId: event.message_id,
+                from: event.from,
+                to: channelCfg.channel_user_id || destination.user_id,
+                text: event.payload?.text,
+                metadata: event.metadata,
+              });
+
+          // Atualizar status por canal
+          const deliveredAt = result.deliveredAt ? new Date(result.deliveredAt) : new Date();
+          await this.messagesCollection.updateOne(
+            { message_id: event.message_id, conversation_id: event.conversation_id },
+            {
+              $set: {
+                status: result.status === 'DELIVERED' ? 'DELIVERED' : 'SENT',
+                updated_at: new Date(),
+              },
+              $push: {
+                delivery_metadata: {
+                  channel: channelCfg.channel,
+                  delivered_at: deliveredAt,
+                  status: result.status,
+                  target: channelCfg.channel_user_id || destination.user_id,
+                },
+              },
+            },
+          );
+
+          // Publicar evento de entrega
+          await this.producer.send({
+            topic: 'messages.delivery',
+            messages: [
+              {
+                key: event.conversation_id,
+                value: JSON.stringify({
+                  message_id: event.message_id,
+                  conversation_id: event.conversation_id,
+                  status: result.status,
+                  channel: channelCfg.channel,
+                  to: destination.user_id,
+                  timestamp: deliveredAt.getTime(),
+                }),
+              },
+            ],
+          });
         }
-      );
-
-      if (result.modifiedCount > 0) {
-        console.log(`[RouterWorker] Status atualizado para DELIVERED - message_id: ${messageId}`);
-        
-        // Publicar evento de entrega (opcional)
-        await this.producer.send({
-          topic: 'messages.delivery',
-          messages: [{
-            key: event.conversation_id,
-            value: JSON.stringify({
-              message_id: event.message_id,
-              conversation_id: event.conversation_id,
-              status: 'DELIVERED',
-              timestamp: Date.now()
-            })
-          }]
-        });
-      } else {
-        console.warn(`[RouterWorker] Mensagem não encontrada para atualização - message_id: ${messageId}`);
       }
 
     } catch (error) {
