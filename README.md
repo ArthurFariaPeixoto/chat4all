@@ -90,12 +90,8 @@ npm start
 
 Para mais detalhes: [README - Web Client](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/services/client-web/README.md)
 
-### 5. Documentação da API (Swagger)
-Para visualizar a documentação estilo OpenAPI dos serviços (se habilitado o wrapper HTTP):
 
-- Acesse: http://localhost:<PORTA_DO_APP>/api
-
-### 6. Detalhes sobre o Setup: [README - SETUP](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/SETUP.md)
+### 5. Detalhes sobre o Setup: [README - SETUP](https://github.com/ArthurFariaPeixoto/chat4all/blob/main/SETUP.md)
 
 ---
 
